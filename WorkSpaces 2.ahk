@@ -602,7 +602,6 @@ PassWordInput(){
 		return Show?m("Sequence Failed"):""
 	}else
 		Node.SetAttribute("entered",1)
-	t(xx[])
 }
 CreateChrome(){
 	ClearLast()
@@ -616,18 +615,4 @@ CreateChrome(){
 		Obj.max:=1
 	Obj.exe:="Chrome.exe"
 	New:=xx.Add("WorkSpaces/HotKey",{last:1},,1),xx.Under(New,"Window",Obj),PopulateSpaces()
-}
-t(x*){
-	for a,b in x{
-		if((obj:=StrSplit(b,":")).1="time"){
-			SetTimer,killtip,% "-" obj.2*1000
-			Continue
-		}
-		list.=b "`n"
-	}
-	Tooltip,% list
-	return
-	killtip:
-	ToolTip
-	return
 }
