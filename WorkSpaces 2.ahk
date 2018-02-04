@@ -8,9 +8,6 @@ if(xx.SSN("//Settings/HotKey")){
 		Top.AppendChild(aa)
 }
 /*
-	Login with credentials{
-		credentials only on the first load
-	}
 	Create Explorer Window
 	Lock Down Window Positions
 	Add More Windows To Chrome things
@@ -18,6 +15,7 @@ if(xx.SSN("//Settings/HotKey")){
 Menu,Tray,NoStandard
 Menu,Tray,Add,Open GUI,Gui
 Menu,Tray,Default,Open GUI
+Menu,Tray,Add,Exit,Exit
 if(A_UserName="maest")
 	Gui()
 GetWindows(1)
@@ -756,7 +754,6 @@ DeadEnd(){
 }
 +Escape::
 Exit:
-GuiClose:
 All:=xx.SN("//Window[@hwnd]")
 while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 	aa.RemoveAttribute("hwnd")
