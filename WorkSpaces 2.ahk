@@ -487,7 +487,7 @@ Enter(){
 				Catch
 					return m("Hotkey is invalid")
 			}Key:=Format("{:T}",Key)
-			if((NodeCheck:=xx.SSN("//*[@hotkey='" Key "']"))&&NodeCheck.xml!=Node.xml&&Key){
+			if((NodeCheck:=xx.SSN("//*[@hotkey='" Key "']"))&&NodeCheck.xml!=Node.xml&&Key!=""){
 				m("Key exists")
 				Goto,KeyLoop
 			}
@@ -509,7 +509,7 @@ Enter(){
 				Catch
 					return m("Hotkey is invalid")
 			}Key:=Format("{:T}",Key)
-			if(xx.SSN("//*[@hotkey='" Key "']")){
+			if(xx.SSN("//*[@hotkey='" Key "']")&&Key){
 				m("Key exists")
 				Goto,KeyLoop2
 			}
