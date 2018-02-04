@@ -414,7 +414,7 @@ Launch(){
 				}}
 				if(ea.URL&&ea.EXE="Chrome.exe"&&!WinExist("ahk_id" SSN(aa,"@hwnd").text)){
 					New:=1,GetWindows(1)
-					if(!ea.Username&&!ea.Password&&!ea.UserNode&&!ea.PassWordNode)
+					if(!ea.Username||!ea.Password||!ea.UserNode||!ea.PassWordNode)
 						Run,% "Chrome.exe --new-window " ea.URL,,Hide
 					else{
 						URLAfter:=1
@@ -463,7 +463,7 @@ Launch(){
 					}
 				}
 				if(URLAfter){
-					Login(aa,ChromeInst)
+					Login(aa,ChromeInst),URLAfter:=0
 				}
 			}if(!New&&!Moved&&Pos&&!No){
 				while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa))
@@ -842,7 +842,7 @@ CreateChrome(EditNode:=""){
 	Gui,Add,Hotkey,w200 vHotkey,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
 	Gui,Add,Text,,Manual Hotkey:
 	Gui,Add,Edit,w200 vManual gManualHotkey
-	for a,b in [["username","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",RegExReplace(Decode(ea.PassWord),".","*")],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
+	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",RegExReplace(Decode(ea.PassWord),".","*")],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
 		Gui,Add,Text,,% b.2 ":"
 		Gui,Add,Edit,% "w200 v" b.1,% b.3
 	}
@@ -863,7 +863,7 @@ CreateChrome(EditNode:=""){
 	}else
 		Hotkey:=Hotkey
 	ClearLast()
-	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:UserName,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode}
+	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:User,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode}
 	if(Width&&Height)
 		Obj.width:=Width,Obj.height:=Height
 	else
