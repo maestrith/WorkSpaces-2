@@ -677,6 +677,7 @@ CreatePassWordSequence(){
 Enter(){
 	static HotKey,InputHotkey,Node
 	ControlGetFocus,Focus,% v.ID
+	KeyWait,Enter,U
 	if(Focus="SysTreeView321"){
 		Node:=xx.SSN("//*[@tv='" TV_GetSelection() "']")
 		if(Node.NodeName="Window"){
@@ -695,7 +696,6 @@ Enter(){
 			Gui,Add,Text,,Manual Hotkey:
 			Gui,Add,Edit,gKeyEditHotkey vInputHotkey
 			Gui,Add,Button,gSaveKey Default,Save HotKey
-			KeyWait,Enter,U
 			Gui,Show
 			return
 			SaveKey:
