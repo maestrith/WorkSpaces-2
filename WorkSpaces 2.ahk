@@ -495,7 +495,7 @@ Enter(){
 			if(Password:=SSN(Node,"@password").text){
 				InputBox,Password,Password,Enter New Password,,,,,,,,% Decode(Password)
 				if(!ErrorLevel)
-					Node.SetAttribute("password",Password)
+					Node.SetAttribute("password",Decode(Password))
 			}
 			PopulateSpaces(1)
 		}else if(Node.NodeName="HotKey"){
