@@ -348,7 +348,7 @@ URLDownloadToVar(URL){
 	return http.ResponseText
 }
 UpdateScript(){
-	Info:=URLDownloadToVar(RegExReplace("https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk","\$1",Branch))
+	Info:=URLDownloadToVar(RegExReplace("https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk?refresh=" A_Now,"\$1",Branch))
 	xx.Save(1)
 	if(InStr(Info,"Look For This Text")){
 		SplitPath,A_ScriptFullPath,,Dir,Ext,NNE
