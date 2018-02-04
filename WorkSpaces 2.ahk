@@ -413,7 +413,9 @@ UpdateScript(){
 	Info:=URLDownloadToVar(RegExReplace("https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk","\$1",Branch))
 	if(InStr(Info,"Look For This Text")){
 		SplitPath,A_ScriptFullPath,,Dir,Ext,NNE
-		FileMove,%A_ScriptFullPath%,%Dir%\%NNE% %A_Now%.%Ext%
+		if(!FileExist("Backup"))
+			FileCreateDir,Backup
+		FileMove,%A_ScriptFullPath%,%Dir%\Backup\%NNE% %A_Now%.%Ext%
 		FileAppend,%Info%,%A_ScriptFullPath%,UTF-8
 		Reload
 		ExitApp
