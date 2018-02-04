@@ -342,14 +342,20 @@ SN(node,XPath){
 	return node.SelectNodes(XPath)
 }
 Gui(){
+	Gui,Color,0,0
+	Gui,Font,c0xAAAAAA
 	Gui,Add,TreeView,w500 h500
-	Gui,Add,Button,gCheckForUpdate,Check For Update
+	FileRead,ChangeLog,Lib\master ChangeLog.txt
+	RegExMatch(ChangeLog,"OU)\x22message\x22:\x22(.*)\x22,",Info)
+	Gui,Add,Edit,x+M w200 h500,% "Version Information:`r`n" RegExReplace(Info.1,"\\r\\n","`r`n")
+	Gui,Add,Button,xm gCheckForUpdate,Check For Update
+	Gui,Add,Button,xm gUpdateScript,Update Script
 	Gui,Show,,WorkSpaces 2
 	PopulateSpaces()
 	return
 }
 PopulateSpaces(){
-	All:=xx.SN("//HotKey/descendant-or-self::*")
+	All:=xx.SN("//descendant-or-self::*")
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		if(ea.HotKey)
 			aa.SetAttribute("tv",TV_Add(ea.HotKey,SSN(aa.ParentNode,"@tv").text))
@@ -359,8 +365,8 @@ PopulateSpaces(){
 	}
 }
 CheckForUpdate(){
-	static DownloadURL:="https://raw.githubusercontent.com/maestrith/WorkSpaces-2/$1/WorkSpaces 2.AHK",URL:="https://api.github.com/repos/maestrith/WorkSpaces-2/commits/$1"
-	
+	static URL:="https://api.github.com/repos/maestrith/WorkSpaces-2/commits/$1"
+	Branch:="master"
 	sub:=A_NowUTC
 	sub-=A_Now,hh
 	FileGetTime,Time,%A_ScriptFullPath%
@@ -381,7 +387,7 @@ CheckForUpdate(){
 			return
 	}File:=FileOpen("Lib\" Branch " ChangeLog.txt","rw")
 	File.Seek(0)
-	File.Write(Update:=RegExReplace(RegExReplace(URLDownloadToVar(RegExReplace(VersionTextURL,"\$1",Branch) "?refresh=" A_Now),"\R","`r`n"),Chr(127),"`r`n"))
+	File.Write(Update:=RegExReplace(RegExReplace(URLDownloadToVar(RegExReplace(URL,"\$1",Branch) "?refresh=" A_Now),"\R","`r`n"),Chr(127),"`r`n"))
 	File.Length(File.Position)
 	File.Close()
 	if(Time<Date)
@@ -390,12 +396,8 @@ CheckForUpdate(){
 		Update:="No New Updates"
 	if(!found.1)
 		Update:=http.ResponseText
-	ControlSetText,Edit1,%Update%,%ID%
-	
-	
-	
-	
-	
+	RegExMatch(Update,"OU)\x22message\x22:\x22(.*)\x22,",Message)
+	ControlSetText,Edit1,% "Version Information:`r`n" RegExReplace(Message.1,"\\r\\n","`r`n"),%ID%
 }
 URLDownloadToVar(URL){
 	http:=ComObjCreate("WinHttp.WinHttpRequest.5.1")
@@ -406,4 +408,20 @@ URLDownloadToVar(URL){
 	http.SetRequestHeader("Cache-Control","no-cache")
 	http.Send(),http.WaitForResponse
 	return http.ResponseText
+}
+UpdateScript(){
+	static DownloadURL:="http://raw.githubusercontent.com/maestrith/WorkSpaces-2/$1/WorkSpaces%202.AHK"
+	Branch:="master"
+	Info:=URLDownloadToVar(RegExReplace("https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk","\$1",Branch))
+	if(InStr(Info,"Look For This Text")){
+		SplitPath,A_ScriptFullPath,,Dir,Ext,NNE
+		FileMove,%A_ScriptFullPath%,%Dir%\%NNE% %A_Now%.%Ext%
+		FileAppend,%Info%,%A_ScriptFullPath%,UTF-8
+		Reload
+		ExitApp
+	}else
+		m("Unable to update.  Please try again later.")
+	/*
+		https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk
+	*/
 }
