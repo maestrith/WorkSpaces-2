@@ -11,15 +11,17 @@ Gui()
 GetWindows(1)
 OnExit,Exit
 List:=Monitors()
-All:=xx.SN("//HotKey")
-while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
-	Hotkey,% ea.HotKey,Launch,On
-}
-All:=xx.SN("//PassWord/descendant::Key")
-while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
-	if(ea.Key)
-		Hotkey,% ea.Key,PassWordInput,On
-}
+/*
+	All:=xx.SN("//HotKey")
+	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
+		Hotkey,% ea.HotKey,Launch,On
+	}
+	All:=xx.SN("//PassWord/descendant::Key")
+	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
+		if(ea.Key)
+			Hotkey,% ea.Key,PassWordInput,On
+	}
+*/
 /*
 	for a,b in List.List.1
 		m(a,b)
@@ -262,6 +264,7 @@ Gui(){
 	RegExMatch(ChangeLog,"OU)\x22message\x22:\x22(.*)\x22,",Info)
 	Gui,Add,Edit,x+M w200 h500,% "Version Information:`r`n" RegExReplace(Info.1,"\\r\\n","`r`n")
 	Gui,Add,Button,xm gCreatePassWordSequence,Create PassWord Sequence
+	Gui,Add,Button,xm gCreateChrome,Create Chrome Window
 	Gui,Add,Button,xm gCheckForUpdate,Check For Update
 	Gui,Add,Button,xm gUpdateScript,Update Script
 	Gui,Show,,WorkSpaces 2
@@ -281,14 +284,19 @@ PopulateSpaces(SetLast:=0){
 	GuiControl,-Redraw,SysTreeView321
 	All:=xx.SN("//WorkSpaces/HotKey/descendant-or-self::*|//PassWord/descendant-or-self::*"),TV_Delete()
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
-		if(ea.HotKey)
-			aa.SetAttribute("tv",TV_Add(ea.HotKey,SSN(aa.ParentNode,"@tv").text))
-		else if(aa.NodeName="Window"){
+		if(aa.NodeName="HotKey"){
+			aa.SetAttribute("tv",TV_Add(Convert_Hotkey(ea.HotKey),SSN(aa.ParentNode,"@tv").text))
+			if(ea.Hotkey)
+				Hotkey,% ea.HotKey,Launch,On
+		}else if(aa.NodeName="Window"){
 			aa.SetAttribute("tv",TV_Add("Chrome - " ea.URL,SSN(aa.ParentNode,"@tv").text))
 		}else if(aa.NodeName="PassWord")
 			aa.SetAttribute("tv",TV_Add("Password",SSN(aa.ParentNode,"@tv").text))
-		else if(aa.NodeName="Key")
-			aa.SetAttribute("tv",TV_Add("Key: " (ea.Key?Convert_Hotkey(ea.Key):"Undefined"),SSN(aa.ParentNode,"@tv").text))
+		else if(aa.NodeName="Key"){
+			aa.SetAttribute("tv",TV_Add("Key: " (ea.Hotkey?Convert_Hotkey(ea.Hotkey):"Undefined"),SSN(aa.ParentNode,"@tv").text))
+			if(ea.Hotkey)
+				Hotkey,% ea.Hotkey,PassWordInput,On
+		}
 	}
 	GuiControl,+Redraw,SysTreeView321
 	if(tv:=xx.SSN("//*[@last]/@tv").text)
@@ -363,7 +371,7 @@ Launch(){
 		ThisHotkey:=b.Hotkey
 		if(!IsObject(Obj:=Order[b.Hotkey]))
 			Obj:=Order[b.Hotkey]:=[]
-		Node:=xx.Find("//@hotkey",ThisHotkey)
+		Node:=xx.Find("//@hotkey",Format("{:T}",ThisHotkey))
 		Obj.Push(Node)
 	}for a,b in Order{
 		if(b.MaxIndex()>1){
@@ -466,7 +474,7 @@ Enter(){
 			
 		}else if(Node.NodeName="Key"){
 			KeyLoop:
-			InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@key").text
+			InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
 			if(ErrorLevel)
 				return
 			else if(Key){
@@ -479,7 +487,24 @@ Enter(){
 				m("Key exists")
 				Goto,KeyLoop
 			}
-			Node.SetAttribute("key",Key)
+			Node.SetAttribute("hotkey",Key)
+			PopulateSpaces(1)
+		}else if(Node.NodeName="HotKey"){
+			KeyLoop2:
+			InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
+			if(ErrorLevel)
+				return
+			else if(Key){
+				Try
+					Hotkey,%Key%,DeadEnd
+				Catch
+					return m("Hotkey is invalid")
+			}Key:=Format("{:T}",Key)
+			if(xx.SSN("//*[@hotkey='" Key "']")){
+				m("Key exists")
+				Goto,KeyLoop2
+			}
+			Node.SetAttribute("hotkey",Key)
 			PopulateSpaces(1)
 		}
 	}
@@ -517,6 +542,8 @@ Delete(){
 	}
 }
 Convert_Hotkey(key){
+	if(!Key)
+		return "Undefined"
 	StringUpper,key,key
 	for a,b in [{Ctrl:"^"},{Win:"#"},{Alt:"!"},{Shift:"+"}]
 		for c,d in b
@@ -525,10 +552,10 @@ Convert_Hotkey(key){
 	return build key
 }
 PassWordInput(){
-	Node:=xx.SSN("//*[@key='" A_ThisHotkey "']")
+	Node:=xx.SSN("//*[@hotkey='" A_ThisHotkey "']")
 	All:=SN(Node,"preceding-sibling::*")
 	if(SSN(Node,"@entered"))
-		Failed:=1
+		Failed:=1,Show:=1
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		if(!ea.Entered){
 			Failed:=1
@@ -536,8 +563,19 @@ PassWordInput(){
 		}
 	}if(!Node.NextSibling){
 		All:=SN(Node.ParentNode,"descendant::*")
-		while(aa:=All.Item[A_Index-1])
+		Node.SetAttribute("entered",1)
+		while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
+			if(!ea.Entered)
+				Failed:=1
 			aa.RemoveAttribute("entered")
+		}
+		if(Failed){
+			All:=SN(Node.ParentNode,"descendant::*")
+			while(aa:=All.Item[A_Index-1]){
+				aa.RemoveAttribute("entered")
+			}
+			return Show?m("Sequence Failed"):""
+		}
 		if(!Password:=SSN(Node,"@password").text){
 			InputBox,Password,Password,Enter the password for this sequence
 			if(ErrorLevel||!Password)
@@ -560,4 +598,32 @@ PassWordInput(){
 		return Show?m("Sequence Failed"):""
 	}else
 		Node.SetAttribute("entered",1)
+	t(xx[])
+}
+CreateChrome(){
+	ClearLast()
+	Obj:=[]
+	for a,b in {url:"Enter URL",width:"Enter the width for this window 1=Full .5=Half",height:"Enter the height for this window 1=Full .5=Half",window:"Enter the window number to display this on"}{
+		InputBox,Info,Input Information,%b%
+		if(Info)
+			Obj[a]:=Info
+	}
+	if(!Obj.Width&&!Obj.Height)
+		Obj.max:=1
+	Obj.exe:="Chrome.exe"
+	New:=xx.Add("WorkSpaces/HotKey",{last:1},,1),xx.Under(New,"Window",Obj),PopulateSpaces()
+}
+t(x*){
+	for a,b in x{
+		if((obj:=StrSplit(b,":")).1="time"){
+			SetTimer,killtip,% "-" obj.2*1000
+			Continue
+		}
+		list.=b "`n"
+	}
+	Tooltip,% list
+	return
+	killtip:
+	ToolTip
+	return
 }
