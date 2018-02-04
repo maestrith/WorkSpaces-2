@@ -410,8 +410,6 @@ URLDownloadToVar(URL){
 	return http.ResponseText
 }
 UpdateScript(){
-	static DownloadURL:="http://raw.githubusercontent.com/maestrith/WorkSpaces-2/$1/WorkSpaces%202.AHK"
-	Branch:="master"
 	Info:=URLDownloadToVar(RegExReplace("https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk","\$1",Branch))
 	if(InStr(Info,"Look For This Text")){
 		SplitPath,A_ScriptFullPath,,Dir,Ext,NNE
@@ -421,7 +419,4 @@ UpdateScript(){
 		ExitApp
 	}else
 		m("Unable to update.  Please try again later.")
-	/*
-		https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk
-	*/
 }
