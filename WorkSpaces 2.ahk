@@ -493,7 +493,7 @@ Enter(){
 			}
 			Node.SetAttribute("hotkey",Key)
 			if(Password:=SSN(Node,"@password").text){
-				InputBox,Password,Password,Enter New Password,,,,,,,,% Decode(Password)
+				InputBox,Password,Password,Enter New Password
 				if(!ErrorLevel)
 					Node.SetAttribute("password",Encode(Password))
 			}
@@ -564,7 +564,7 @@ PassWordInput(){
 	Node:=xx.SSN("//*[@hotkey='" A_ThisHotkey "']")
 	All:=SN(Node,"preceding-sibling::*")
 	if(SSN(Node,"@entered"))
-		Failed:=1,Show:=1
+		Failed:=1
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		if(!ea.Entered){
 			Failed:=1
@@ -591,6 +591,7 @@ PassWordInput(){
 				return
 			return Node.SetAttribute("password",Encode(Password))
 		}Clip:=ClipboardAll,Clipboard:=Decode(Password)
+		Node.RemoveAttribute("entered")
 		while(Clipboard!=Decode(Password))
 			Sleep,50
 		Sleep,100
@@ -598,6 +599,7 @@ PassWordInput(){
 		Sleep,100
 		Clipboard:=Clip
 		Send,{Enter}
+		return
 	}
 	if(Failed){
 		All:=SN(Node.ParentNode,"descendant::*")
