@@ -4,3 +4,8 @@ Added:
 - Check For Update and Update Script
 - Put the backups in the right folder
 - Password Sequence
+- Chrome Window Editor
+Removed: Requested by Amit
+- Gui does not show when launching the script
+Added: Requested by Amit
+- Login with Credentials (Beta)

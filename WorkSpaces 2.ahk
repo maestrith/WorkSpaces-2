@@ -7,7 +7,19 @@ if(xx.SSN("//Settings/HotKey")){
 	while(aa:=All.Item[A_Index-1])
 		Top.AppendChild(aa)
 }
-Gui()
+/*
+	Login with credentials{
+		credentials only on the first load
+	}
+	Create Explorer Window
+	Lock Down Window Positions
+	Add More Windows To Chrome things
+*/
+Menu,Tray,NoStandard
+Menu,Tray,Add,Open GUI,Gui
+Menu,Tray,Default,Open GUI
+if(A_UserName="maest")
+	Gui()
 GetWindows(1)
 OnExit,Exit
 List:=Monitors()
@@ -263,8 +275,8 @@ Gui(){
 	FileRead,ChangeLog,Lib\master ChangeLog.txt
 	RegExMatch(ChangeLog,"OU)\x22message\x22:\x22(.*)\x22,",Info)
 	Gui,Add,Edit,x+M w200 h500,% "Version Information:`r`n" RegExReplace(Info.1,"\\r\\n","`r`n")
-	Gui,Add,Button,xm gCreatePassWordSequence,Create PassWord Sequence
-	Gui,Add,Button,xm gCreateChrome,Create Chrome Window
+	Gui,Add,Button,xm gCreatePassWordSequence,Create &PassWord Sequence
+	Gui,Add,Button,xm gCreateChrome,Create &Chrome Window
 	Gui,Add,Button,xm gCheckForUpdate,Check For Update
 	Gui,Add,Button,xm gUpdateScript,Update Script
 	Gui,Show,,WorkSpaces 2
@@ -275,13 +287,13 @@ Gui(){
 	return
 }
 PopulateSpaces(SetLast:=0){
+	Gui,1:Default
 	if(SetLast){
 		All:=xx.SN("//*[@last]")
 		while(aa:=All.Item[A_Index-1])
 			aa.RemoveAttribute("last")
 		xx.SSN("//*[@tv='" TV_GetSelection() "']").SetAttribute("last",1)
-	}
-	GuiControl,-Redraw,SysTreeView321
+	}GuiControl,-Redraw,SysTreeView321
 	All:=xx.SN("//WorkSpaces/HotKey/descendant-or-self::*|//PassWord/descendant-or-self::*"),TV_Delete()
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		if(aa.NodeName="HotKey"){
@@ -368,9 +380,6 @@ Launch(){
 	return
 	CheckSpaceBetween:
 	Order:=[]
-	/*
-		explorer in a specific window
-	*/
 	while(b:=KeyPress.Pop()){
 		ThisHotkey:=b.Hotkey
 		if(!IsObject(Obj:=Order[b.Hotkey]))
@@ -405,7 +414,14 @@ Launch(){
 				}}
 				if(ea.URL&&ea.EXE="Chrome.exe"&&!WinExist("ahk_id" SSN(aa,"@hwnd").text)){
 					New:=1,GetWindows(1)
-					Run,% "Chrome.exe --new-window " ea.URL,,Hide
+					if(!ea.Username&&!ea.Password&&!ea.UserNode&&!ea.PassWordNode)
+						Run,% "Chrome.exe --new-window " ea.URL,,Hide
+					else{
+						URLAfter:=1
+						if(!FileExist("ChromeProfile"))
+							FileCreateDir,ChromeProfile
+						ChromeInst:=new Chrome("ChromeProfile")
+					}
 					while(!Current:=GetWindows())
 						Sleep,100
 					aa.SetAttribute("hwnd",Current)
@@ -446,12 +462,202 @@ Launch(){
 							Win[ea.Window].Y+=Height*ea.Height
 					}
 				}
+				if(URLAfter){
+					Login(aa,ChromeInst)
+				}
 			}if(!New&&!Moved&&Pos&&!No){
 				while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa))
 					WinMinimize,% "ahk_id" ea.HWND
 			}
 		}
 	}return
+}
+class Chrome
+{
+	static DebugPort := 9222
+	
+	; Escape a string in a manner suitable for command line parameters
+	CliEscape(Param)
+	{
+		return """" RegExReplace(Param, "(\\*)""", "$1$1\""") """"
+	}
+	
+	__New(ProfilePath:="", URL:="about:blank", ChromePath:="", DebugPort:="")
+	{
+		if (ProfilePath != "" && !InStr(FileExist(ProfilePath), "D"))
+			throw Exception("The given ProfilePath does not exist")
+		this.ProfilePath := ProfilePath
+		
+		; TODO: Perform a more rigorous search for Chrome
+		if (ChromePath == "")
+			FileGetShortcut, %A_StartMenuCommon%\Programs\Google Chrome.lnk, ChromePath
+		if !FileExist(ChromePath)
+			throw Exception("Chrome could not be found")
+		this.ChromePath := ChromePath
+		
+		if (DebugPort != "")
+		{
+			this.DebugPort := Round(DebugPort)
+			if (this.DebugPort <= 0) ; TODO: Support DebugPort of 0
+				throw Exception("DebugPort must be a positive integer")
+		}
+		
+		; TODO: Support an array of URLs
+		Run, % this.CliEscape(ChromePath)
+		. " --remote-debugging-port=" this.DebugPort
+		. (ProfilePath ? " --user-data-dir=" this.CliEscape(ProfilePath) : "")
+		. (URL ? " " this.CliEscape(URL) : "")
+	}
+	
+	GetTabs()
+	{
+		http := ComObjCreate("WinHttp.WinHttpRequest.5.1")
+		http.open("GET", "http://127.0.0.1:" this.DebugPort "/json")
+		http.send()
+		return this.Jxon_Load(http.responseText)
+	}
+	
+	GetTab(Index:=0)
+	{
+		; TODO: Filter pages by type before returning an indexed page
+		if (Index > 0)
+			return new this.Tab(this.GetTabs()[Index])
+		
+		for Index, Tab in this.GetTabs()
+			if (Tab.type == "page")
+				return new this.Tab(Tab)
+	}
+	
+	class Tab
+	{
+		Connected := False
+		ID := 0
+		Responses := []
+		
+		__New(wsurl)
+		{
+			this.BoundKeepAlive := this.Call.Bind(this, "Browser.getVersion",, False)
+			
+			; TODO: Throw exception on invalid objects
+			if IsObject(wsurl)
+				wsurl := wsurl.webSocketDebuggerUrl
+			
+			wsurl := StrReplace(wsurl, "localhost", "127.0.0.1")
+			this.ws := {"base": this.WebSocket, "_Event": this.Event, "Parent": this}
+			this.ws.__New(wsurl)
+			
+			while !this.Connected
+				Sleep, 50
+		}
+		
+		Call(DomainAndMethod, Params:="", WaitForResponse:=True)
+		{
+			if !this.Connected
+				throw Exception("Not connected to tab")
+			
+			; Use a temporary variable for ID in case more calls are made
+			; before we receive a response.
+			ID := this.ID += 1
+			this.ws.Send(Chrome.Jxon_Dump({"id": ID
+			, "method": DomainAndMethod, "params": Params}))
+			
+			if !WaitForResponse
+				return
+			
+			; Wait for the response
+			this.responses[ID] := False
+			while !this.responses[ID]
+				Sleep, 50
+			
+			; Get the response, check if it's an error
+			response := this.responses.Delete(ID)
+			if (response.error)
+				throw Exception("Chrome indicated error in response",, Chrome.Jxon_Dump(response.error))
+			
+			return response.result
+		}
+		
+		Evaluate(JS)
+		{
+			response := this.Call("Runtime.evaluate",
+			( LTrim Join
+			{
+				"expression": JS,
+				"objectGroup": "console",
+				"includeCommandLineAPI": Chrome.Jxon_True(),
+				"silent": Chrome.Jxon_False(),
+				"returnByValue": Chrome.Jxon_False(),
+				"userGesture": Chrome.Jxon_True(),
+				"awaitPromise": Chrome.Jxon_False()
+			}
+			))
+			
+			if (response.exceptionDetails)
+				throw Exception(response.result.description,, Chrome.Jxon_Dump(response.exceptionDetails))
+			
+			return response.result
+		}
+		
+		WaitForLoad(DesiredState:="complete", Interval:=100)
+		{
+			while this.Evaluate("document.readyState").value != DesiredState
+				Sleep, %Interval%
+		}
+		
+		Event(EventName, Event)
+		{
+			; Called from WebSocket
+			if this.Parent
+				this := this.Parent
+			
+			; TODO: Handle Error events
+			if (EventName == "Open")
+			{
+				this.Connected := True
+				BoundKeepAlive := this.BoundKeepAlive
+				SetTimer, %BoundKeepAlive%, 15000
+			}
+			else if (EventName == "Message")
+			{
+				data := Chrome.Jxon_Load(Event.data)
+				if this.responses.HasKey(data.ID)
+					this.responses[data.ID] := data
+			}
+			else if (EventName == "Close")
+			{
+				this.Disconnect()
+			}
+		}
+		
+		Disconnect()
+		{
+			if !this.Connected
+				return
+			
+			this.Connected := False
+			this.ws.Delete("Parent")
+			this.ws.Disconnect()
+			
+			BoundKeepAlive := this.BoundKeepAlive
+			SetTimer, %BoundKeepAlive%, Delete
+			this.Delete("BoundKeepAlive")
+		}
+	}
+}
+
+Login(Node,ChromeInst){
+	static
+	ea:=xx.EA(Node)
+	FileCreateDir, ChromeProfile
+	Tab:=ChromeInst.GetTab()
+	Tab.Call("Page.navigate",{"url":ea.URL})
+	Tab.WaitForLoad()
+	RootNode := Tab.Call("DOM.getDocument").root
+	NameNode := Tab.Call("DOM.querySelector", {"nodeId": RootNode.nodeId, "selector": "input[name=" ea.UserNode "]"})
+	Tab.Call("DOM.setAttributeValue", {"nodeId": NameNode.NodeId, "name": "value", "value":ea.UserName})
+	NameNode := Tab.Call("DOM.querySelector", {"nodeId": RootNode.nodeId, "selector": "input[name=" ea.PasswordNode "]"})
+	Tab.Call("DOM.setAttributeValue", {"nodeId": NameNode.NodeId, "name": "value", "value": Decode(ea.PassWord)})
+	Tab.Evaluate("document.querySelector('button[type=submit]').click();")
 }
 CreatePassWordSequence(){
 	InputBox,Keys,Number Of Keys,Enter the number of keys that you want to have in this sequence,,,,,,,,4
@@ -467,15 +673,7 @@ Enter(){
 	if(Focus="SysTreeView321"){
 		Node:=xx.SSN("//*[@tv='" TV_GetSelection() "']")
 		if(Node.NodeName="Window"){
-			for a,b in XML.EA(Node){
-				if(a~="i)\b(tv|exe|last)\b")
-					Continue
-				InputBox,Info,New Value,% "New Value For: " a,,,,,,,,%b%
-				if(ErrorLevel)
-					return
-				Node.SetAttribute(a,Info)
-			}PopulateSpaces(1)
-			
+			CreateChrome(Node)
 		}else if(Node.NodeName="Key"){
 			KeyLoop:
 			InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
@@ -499,22 +697,25 @@ Enter(){
 			}
 			PopulateSpaces(1)
 		}else if(Node.NodeName="HotKey"){
-			KeyLoop2:
-			InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
-			if(ErrorLevel)
-				return
-			else if(Key){
-				Try
-					Hotkey,%Key%,DeadEnd
-				Catch
-					return m("Hotkey is invalid")
-			}Key:=Format("{:T}",Key)
-			if(xx.SSN("//*[@hotkey='" Key "']")&&Key){
-				m("Key exists")
-				Goto,KeyLoop2
-			}
-			Node.SetAttribute("hotkey",Key)
-			PopulateSpaces(1)
+			CreateChrome(Node)
+			/*
+				KeyLoop2:
+				InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
+				if(ErrorLevel)
+					return
+				else if(Key){
+					Try
+						Hotkey,%Key%,DeadEnd
+					Catch
+						return m("Hotkey is invalid")
+				}Key:=Format("{:T}",Key)
+				if(xx.SSN("//*[@hotkey='" Key "']")&&Key){
+					m("Key exists")
+					Goto,KeyLoop2
+				}
+				Node.SetAttribute("hotkey",Key)
+				PopulateSpaces(1)
+			*/
 		}
 	}
 }
@@ -546,7 +747,7 @@ Delete(){
 	if(Focus="SysTreeView321"){
 		Node:=xx.SSN("//*[@tv='" TV_GetSelection() "']")
 		if(m("Can Not Be Undone!`nDelete " Node.xml "?","ico:!","btn:ync","def:2")="Yes"){
-			Node.ParentNode.RemoveChild(Node),PopulateSpaces()
+			ClearLast(),Next:=Node.NextSibling?Node.NextSibling:Node.PreviousSibling?Node.PreviousSibling:Node.ParentNode,Node.ParentNode.RemoveChild(Node),Next.SetAttribute("last",1),PopulateSpaces()
 		}
 	}
 }
@@ -610,16 +811,87 @@ PassWordInput(){
 	}else
 		Node.SetAttribute("entered",1)
 }
-CreateChrome(){
-	ClearLast()
-	Obj:=[]
-	for a,b in {url:"Enter URL",width:"Enter the width for this window 1=Full .5=Half",height:"Enter the height for this window 1=Full .5=Half",window:"Enter the window number to display this on"}{
-		InputBox,Info,Input Information,%b%
-		if(Info)
-			Obj[a]:=Info
+CreateChrome(EditNode:=""){
+	static
+	if(EditNode.NodeName){
+		Node:=EditNode
+		if(Node.NodeName="Hotkey"){
+			InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
+			if(!ErrorLevel)
+				CheckHotkey(Node,Key)
+			return
+		}
 	}
-	if(!Obj.Width&&!Obj.Height)
+	ClearLast()
+	All:=xx.SN("//*[@hotkey]")
+	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
+		Try
+			Hotkey,% ea.Hotkey,Off
+	}
+	Gui,2:Destroy
+	Gui,2:Default
+	Gui,Color,0,0
+	Gui,Font,c0xAAAAAA
+	ea:=XML.EA(Node)
+	Gui,Add,Text,,Width and Height values:`n`t1=Full Width/Height`n`t.5=Half Width/Height`n`t(Both values Blank for FullScreen)
+	for a,b in [["url","Enter URL",ea.URL],["window","Enter the window number to display this on",ea.Window?ea.Window:1]]{
+		Gui,Add,Text,,% b.2 ":"
+		Gui,Add,Edit,% "w200 v" b.1,% b.3
+	}
+	Gui,Add,Text,,Typed Hotkey: (Press the keys)
+	Gui,Add,Hotkey,w200 vHotkey,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
+	Gui,Add,Text,,Manual Hotkey:
+	Gui,Add,Edit,w200 vManual gManualHotkey
+	for a,b in [["username","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",RegExReplace(Decode(ea.PassWord),".","*")],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
+		Gui,Add,Text,,% b.2 ":"
+		Gui,Add,Edit,% "w200 v" b.1,% b.3
+	}
+	Gui,Add,Button,gSaveChrome Default,&Save
+	Gui,show,,Chrome
+	return
+	ManualHotkey:
+	Gui,2:Submit,Nohide
+	GuiControl,2:,msctls_Hotkey321,%Manual%
+	return
+	SaveChrome:
+	Gui,2:Submit,Nohide
+	if(Manual){
+		Try{
+			Hotkey,%Manual%,DeadEnd,On
+			Hotkey:=Manual
+		}
+	}else
+		Hotkey:=Hotkey
+	ClearLast()
+	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:UserName,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode}
+	if(Width&&Height)
+		Obj.width:=Width,Obj.height:=Height
+	else
 		Obj.max:=1
-	Obj.exe:="Chrome.exe"
-	New:=xx.Add("WorkSpaces/HotKey",{last:1},,1),xx.Under(New,"Window",Obj),PopulateSpaces()
+	if(Node.XML)
+		for a,b in Obj
+			Node.SetAttribute(a,b)
+	else
+		New:=xx.Add("WorkSpaces/HotKey",,,1),Node:=xx.Under(New,"Window")
+	for a,b in Obj
+		Node.SetAttribute(a,b)
+	if(CheckHotkey(SSN(Node,"ancestor-or-self::HotKey"),Hotkey)){
+		Gui,2:Destroy
+		Node:="",xx.Save(1)
+	}
+	PopulateSpaces()
+	return
+	2GuiEscape:
+	Gui,2:Destroy
+	return
+}
+CheckHotkey(Node,Key){
+	Exist:=xx.SSN("//*[@hotkey='" Format("{:T}",Key) "']")
+	if(Exist.xml=Node.xml)
+		return 1
+	if(!Exist){
+		Node.SetAttribute("hotkey",Format("{:T}",Key))
+		return 1
+	}else
+		return 0,m("Hotkey Exists")
 }
