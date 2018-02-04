@@ -288,6 +288,9 @@ Gui(){
 }
 PopulateSpaces(SetLast:=0){
 	Gui,1:Default
+	for a,b in v.CurrentHotkeys
+		Hotkey,%a%,Off
+	v.CurrentHotkeys:=[]
 	if(SetLast){
 		All:=xx.SN("//*[@last]")
 		while(aa:=All.Item[A_Index-1])
@@ -298,16 +301,19 @@ PopulateSpaces(SetLast:=0){
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		if(aa.NodeName="HotKey"){
 			aa.SetAttribute("tv",TV_Add(Convert_Hotkey(ea.HotKey),SSN(aa.ParentNode,"@tv").text))
-			if(ea.Hotkey)
+			if(ea.Hotkey){
 				Hotkey,% ea.HotKey,Launch,On
-		}else if(aa.NodeName="Window"){
+				v.CurrentHotkeys[ea.Hotkey]:="Launch"
+		}}else if(aa.NodeName="Window"){
 			aa.SetAttribute("tv",TV_Add("Chrome - " ea.URL,SSN(aa.ParentNode,"@tv").text))
 		}else if(aa.NodeName="PassWord")
 			aa.SetAttribute("tv",TV_Add("Password",SSN(aa.ParentNode,"@tv").text))
 		else if(aa.NodeName="Key"){
 			aa.SetAttribute("tv",TV_Add("Key: " (ea.Hotkey?Convert_Hotkey(ea.Hotkey):"Undefined"),SSN(aa.ParentNode,"@tv").text))
-			if(ea.Hotkey)
+			if(ea.Hotkey){
 				Hotkey,% ea.Hotkey,PassWordInput,On
+				v.CurrentHotkeys[ea.Hotkey]:="PassWordInput"
+			}
 		}
 	}
 	GuiControl,+Redraw,SysTreeView321
@@ -669,37 +675,57 @@ CreatePassWordSequence(){
 	PopulateSpaces()
 }
 Enter(){
+	static HotKey,InputHotkey,Node
 	ControlGetFocus,Focus,% v.ID
 	if(Focus="SysTreeView321"){
 		Node:=xx.SSN("//*[@tv='" TV_GetSelection() "']")
 		if(Node.NodeName="Window"){
 			CreateChrome(Node)
-		}else if(Node.NodeName="Key"){
-			KeyLoop:
-			InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
-			if(ErrorLevel)
-				return
-			else if(Key){
+		}else if(Node.NodeName="Key"||Node.NodeName="HotKey"){
+			for a,b in v.CurrentHotkeys{
 				Try
-					Hotkey,%Key%,DeadEnd
-				Catch
-					return m("Hotkey is invalid")
-			}Key:=Format("{:T}",Key)
-			if((NodeCheck:=xx.SSN("//*[@hotkey='" Key "']"))&&NodeCheck.xml!=Node.xml&&Key!=""){
-				m("Key exists")
-				Goto,KeyLoop
+					Hotkey,%a%,Off
 			}
-			Node.SetAttribute("hotkey",Key)
-			if(Password:=SSN(Node,"@password").text){
-				InputBox,Password,Password,Enter New Password
-				if(!ErrorLevel)
-					Node.SetAttribute("password",Encode(Password))
-			}
-			PopulateSpaces(1)
-		}else if(Node.NodeName="HotKey"){
-			CreateChrome(Node)
+			Gui,3:Destroy
+			Gui,3:Default
+			Gui,Color,0,0
+			Gui,Font,c0xAAAAAA
+			Gui,Add,Text,,Hotkey Field:
+			Gui,Add,Hotkey,vHotkey,% SSN(Node,"@hotkey").text
+			Gui,Add,Text,,Manual Hotkey:
+			Gui,Add,Edit,gKeyEditHotkey vInputHotkey
+			Gui,Add,Button,gSaveKey Default,Save HotKey
+			KeyWait,Enter,U
+			Gui,Show
+			return
+			SaveKey:
+			Gui,3:Submit,Nohide
+			Hotkey:=InputHotkey?InputHotkey:HotKey
+			Try{
+				Hotkey,%HotKey%,DeadEnd,On
+				Hotkey,%HotKey%,DeadEnd,Off
+			}Catch
+				return
+			Hotkey:=Format("{:T}",Hotkey)
+			Exist:=xx.SSN("//*[@hotkey='" Hotkey "']")
+			if(Exist.xml=Node.xml){
+				Gui,3:Destroy
+				return
+			}if(Exist)
+				return m("Duplicate Hotkey")
+			else
+				Node.SetAttribute("hotkey",Hotkey),PopulateSpaces(1)
+			Gui,3:Destroy
+			return
+			3GuiEscape:
+			Gui,3:Destroy
+			return
+			KeyEditHotkey:
+			Gui,3:Submit,Nohide
+			GuiControl,3:,msctls_hotkey321,%InputHotkey%
+			return
 			/*
-				KeyLoop2:
+				KeyLoop:
 				InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
 				if(ErrorLevel)
 					return
@@ -709,13 +735,20 @@ Enter(){
 					Catch
 						return m("Hotkey is invalid")
 				}Key:=Format("{:T}",Key)
-				if(xx.SSN("//*[@hotkey='" Key "']")&&Key){
+				if((NodeCheck:=xx.SSN("//*[@hotkey='" Key "']"))&&NodeCheck.xml!=Node.xml&&Key!=""){
 					m("Key exists")
-					Goto,KeyLoop2
+					Goto,KeyLoop
 				}
 				Node.SetAttribute("hotkey",Key)
+				if(Password:=SSN(Node,"@password").text){
+					InputBox,Password,Password,Enter New Password
+					if(!ErrorLevel)
+						Node.SetAttribute("password",Encode(Password))
+				}
 				PopulateSpaces(1)
 			*/
+		}else if(Node.NodeName="HotKey"){
+			CreateChrome(Node)
 		}
 	}
 }
@@ -771,7 +804,7 @@ PassWordInput(){
 			Failed:=1
 			Break
 		}
-	}if(!Node.NextSibling){
+	}if(!Node.NextSibling&&Node.xml){
 		All:=SN(Node.ParentNode,"descendant::*")
 		Node.SetAttribute("entered",1)
 		while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
