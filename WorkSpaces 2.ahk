@@ -492,6 +492,11 @@ Enter(){
 				Goto,KeyLoop
 			}
 			Node.SetAttribute("hotkey",Key)
+			if(Password:=SSN(Node,"@password").text){
+				InputBox,Password,Password,Enter New Password,,,,,,,,%Password%
+				if(!ErrorLevel)
+					Node.SetAttribute("password",Password)
+			}
 			PopulateSpaces(1)
 		}else if(Node.NodeName="HotKey"){
 			KeyLoop2:
