@@ -756,6 +756,7 @@ DeadEnd(){
 }
 +Escape::
 Exit:
+GuiClose:
 All:=xx.SN("//Window[@hwnd]")
 while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 	aa.RemoveAttribute("hwnd")
