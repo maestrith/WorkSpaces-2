@@ -673,7 +673,7 @@ CreatePassWordSequence(){
 	PopulateSpaces()
 }
 Enter(){
-	static HotKey,InputHotkey,Node
+	static HotKey,InputHotkey,Node,Password
 	ControlGetFocus,Focus,% v.ID
 	KeyWait,Enter,U
 	if(Focus="SysTreeView321"){
@@ -690,9 +690,13 @@ Enter(){
 			Gui,Color,0,0
 			Gui,Font,c0xAAAAAA
 			Gui,Add,Text,,Hotkey Field:
-			Gui,Add,Hotkey,vHotkey,% SSN(Node,"@hotkey").text
+			Gui,Add,Hotkey,vHotkey w200,% SSN(Node,"@hotkey").text
 			Gui,Add,Text,,Manual Hotkey:
-			Gui,Add,Edit,gKeyEditHotkey vInputHotkey
+			Gui,Add,Edit,gKeyEditHotkey vInputHotkey w200
+			if(Password:=SSN(Node,"@password").text){
+				Gui,Add,Text,,Password:
+				Gui,Add,Edit,vPassWord w200 Password,% Decode(Password)
+			}
 			Gui,Add,Button,gSaveKey Default,Save HotKey
 			Gui,Show
 			return
@@ -706,13 +710,16 @@ Enter(){
 				return
 			Hotkey:=Format("{:T}",Hotkey)
 			Exist:=xx.SSN("//*[@hotkey='" Hotkey "']")
+			if(Password)
+				Node.SetAttribute("password",Encode(Password))
 			if(Exist.xml=Node.xml){
 				Gui,3:Destroy
-				return
+				return PopulateSpaces(1)
 			}if(Exist)
 				return m("Duplicate Hotkey")
 			else
-				Node.SetAttribute("hotkey",Hotkey),PopulateSpaces(1)
+				Node.SetAttribute("hotkey",Hotkey)
+			PopulateSpaces(1)
 			Gui,3:Destroy
 			return
 			3GuiEscape:
@@ -722,29 +729,6 @@ Enter(){
 			Gui,3:Submit,Nohide
 			GuiControl,3:,msctls_hotkey321,%InputHotkey%
 			return
-			/*
-				KeyLoop:
-				InputBox,Key,New Key,Enter the key for this item`n! = Alt`n^ = Control`n+ = Shift`n# = Windows Key`nExample: Ctrl+Alt+F1 = ^!F1,,,200,,,,,% SSN(Node,"@hotkey").text
-				if(ErrorLevel)
-					return
-				else if(Key){
-					Try
-						Hotkey,%Key%,DeadEnd
-					Catch
-						return m("Hotkey is invalid")
-				}Key:=Format("{:T}",Key)
-				if((NodeCheck:=xx.SSN("//*[@hotkey='" Key "']"))&&NodeCheck.xml!=Node.xml&&Key!=""){
-					m("Key exists")
-					Goto,KeyLoop
-				}
-				Node.SetAttribute("hotkey",Key)
-				if(Password:=SSN(Node,"@password").text){
-					InputBox,Password,Password,Enter New Password
-					if(!ErrorLevel)
-						Node.SetAttribute("password",Encode(Password))
-				}
-				PopulateSpaces(1)
-			*/
 		}else if(Node.NodeName="HotKey"){
 			CreateChrome(Node)
 		}

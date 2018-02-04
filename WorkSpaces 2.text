@@ -6,6 +6,7 @@ Added:
 - Password Sequence
 - Chrome Window Editor
 - Hotkey entry method
+- Password Entry if the hotkey is the last in the line
 Removed: Requested by Amit
 - Gui does not show when launching the script
 Added: Requested by Amit
