@@ -349,6 +349,7 @@ URLDownloadToVar(URL){
 }
 UpdateScript(){
 	Info:=URLDownloadToVar(RegExReplace("https://raw.githubusercontent.com/maestrith/WorkSpaces-2/master/WorkSpaces%202.ahk","\$1",Branch))
+	xx.Save(1)
 	if(InStr(Info,"Look For This Text")){
 		SplitPath,A_ScriptFullPath,,Dir,Ext,NNE
 		if(!FileExist("Backup"))
@@ -367,6 +368,9 @@ Launch(){
 	return
 	CheckSpaceBetween:
 	Order:=[]
+	/*
+		explorer in a specific window
+	*/
 	while(b:=KeyPress.Pop()){
 		ThisHotkey:=b.Hotkey
 		if(!IsObject(Obj:=Order[b.Hotkey]))
