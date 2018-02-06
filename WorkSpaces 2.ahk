@@ -301,6 +301,7 @@ Gui(MonitorChange:=0){
 		}else{
 		}
 	}
+	HotKey,~Enter,Enter,On
 	return
 	GuiClose:
 	for a,b in v.Windows
