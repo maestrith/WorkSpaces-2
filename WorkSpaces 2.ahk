@@ -311,6 +311,7 @@ Gui(MonitorChange:=0){
 }
 AdjustMonitors(){
 	All:=xx.SN("//Monitors/Monitor"),v.Windows:=[]
+	WinGetPos,x1,y1,w1,h1,% v.ID
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		Win:="Show" A_Index
 		v.Windows.Push(Win)
@@ -324,8 +325,9 @@ AdjustMonitors(){
 		WinGetPos,x,y,w,h,ahk_id%HWND%
 		AddTop:=Round(((ea.Bottom-ea.Top)/2)-(h/2))
 		AddLeft:=Round(((ea.Right-ea.Left)/2)-(w/2))
-		Gui,Show,% "x" ea.Left+AddLeft " y" ea.Top+AddTop,Window%A_Index%
+		Gui,Show,% "x" (A_Index=1?(ea.Left+x1+w1):ea.Left+AddLeft) " y" ea.Top+AddTop,Window%A_Index%
 	}
+	WinActivate,% v.ID
 }
 PopulateSpaces(SetLast:=0){
 	Gui,1:Default
