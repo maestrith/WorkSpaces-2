@@ -1211,9 +1211,9 @@ CreateChrome(EditNode:=""){
 	Gui,Add,Hotkey,w200 vHotkey,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
 	Gui,Add,Text,,Manual Hotkey:
 	Gui,Add,Edit,w200 vManual gManualHotkey
-	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",RegExReplace(Decode(ea.PassWord),".","*")],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
+	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",Decode(ea.PassWord)],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
 		Gui,Add,Text,,% b.2 ":"
-		Gui,Add,Edit,% "w200 v" b.1,% b.3
+		Gui,Add,Edit,% "w200 v" b.1 (A_Index=3?" Password":""),% b.3
 	}
 	Gui,Add,Button,gSaveChrome Default,&Save
 	Gui,show,,Chrome
