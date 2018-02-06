@@ -1,8 +1,5 @@
-0.000.1:
-- Initial Upload
+0.000.2:
 Added:
-- Check For Update and Update Script
-- Put the backups in the right folder
-- Password Sequence
-- MsgBox to let you know that the backup drive is missing
-- Window Number for Screen 1 will open to the Right of the main window.
+- Add Chrome and Explorer window to the current WorkSpace
+- Cleaned up Enter for editing things
+- Moved the Screen Identifier for the main screen from covering the main GUI

@@ -150,16 +150,43 @@ m(x*){
 		IfMsgBox,%a%
 			return b
 }
-GetWindows(CreateList:=0){
+GetWindows(CreateList:=0,Window:="ahk_exe Chrome.exe"){
 	static WindowList:=[]
-	WinGet,ID,list,ahk_exe Chrome.exe
+	WinGet,ID,list,%Window%
+	if(Window="Explorer"){
+		for window in ComObjCreate("Shell.Application").Windows{
+			if(CreateList&&!xx.SSN("//*[@hwnd='" Window.HWND "']"))
+				xx.Add("Exist/HWND",{hwnd:Window.hwnd},,1)
+			if(!CreateList&&!Node:=xx.SSN("//*[@hwnd='" Window.HWND "']"))
+				return Window.HWND
+		}
+		return
+	}
 	Loop,%ID%{
 		HWND:=ID%A_Index%,HWND:=HWND+0
 		WinGetTitle,Title,ahk_id%HWND%
-		if(SubStr(Title,-12)="Google Chrome"){
-			if(CreateList)
+		/*
+			if(!Title){
+				m("Starting OVer: " HWND)
+				return GetWindows(0,Window)
+			}
+		*/
+		if(Window="ahk_exe Chrome.exe"){
+			if(SubStr(Title,-12)="Google Chrome"){
+				if(CreateList)
+					xx.Add("Exist/HWND",{hwnd:hwnd},,1)
+				if(!CreateList&&!xx.SSN("//*[@hwnd='" HWND "']"))
+					return HWND
+		}}else{
+			if(CreateList){
 				xx.Add("Exist/HWND",{hwnd:hwnd},,1)
-			if(!CreateList&&!xx.SSN("//*[@hwnd='" HWND "']"))
+			}
+			/*
+				Explorer windows are a pain in my ass!
+				I think there is a way to get all of the explorer windows.
+				use that rather than the thing I am doing....
+			*/
+			if(!CreateList&&!Node:=xx.SSN("//*[@hwnd='" HWND "']"))
 				return HWND
 		}
 }}
@@ -280,19 +307,24 @@ Gui(MonitorChange:=0){
 	Gui,+hwndMain
 	v.ID:="ahk_id" Main,v.Main:=Main
 	Gui,Font,c0xAAAAAA
-	Gui,Add,TreeView,w500 h500
+	Gui,Add,TreeView,w500 h500 AltSubmit gMainTV
 	FileRead,ChangeLog,Lib\master ChangeLog.txt
 	RegExMatch(ChangeLog,"OU)\x22message\x22:\x22(.*)\x22,",Info)
 	Gui,Add,Edit,x+M w200 h500,% "Version Information:`r`n" RegExReplace(Info.1,"\\r\\n","`r`n")
 	Gui,Add,Button,xm gCreatePassWordSequence,Create &PassWord Sequence
 	Gui,Add,Button,xm gCreateChrome,Create &Chrome Window
 	Gui,Add,Button,xm gCreateExplorerWindow,Create &Explorer Window
+	Gui,Add,Button,xm gAddExplorerWindow,&Add Explorer Window To The Selected WorkSpace
+	Gui,Add,Button,xm gAddChromeWindow,Add Chrome Window To The &Selected WorkSpace
 	Gui,Add,Button,xm gCheckForUpdate,Check For Update
 	Gui,Add,Button,xm gUpdateScript,Update Script
+	Gui,Add,Button,Hidden Default,OK
 	Gui,Show,,WorkSpaces 2
 	Hotkey,IfWinActive,%ID%
-	for a,b in {"~Enter":"Enter","~Delete":"Delete"}
-		Hotkey,%a%,%b%,On
+	/*
+		for a,b in {"~Enter":"Enter","~Delete":"Delete"}
+			Hotkey,%a%,%b%,On
+	*/
 	Hotkey,IfWinActive
 	PopulateSpaces()
 	if(MonitorChange){
@@ -301,7 +333,9 @@ Gui(MonitorChange:=0){
 		}else{
 		}
 	}
-	HotKey,~Enter,Enter,On
+	/*
+		HotKey,~Enter,Enter,On
+	*/
 	return
 	GuiClose:
 	for a,b in v.Windows
@@ -340,7 +374,7 @@ PopulateSpaces(SetLast:=0){
 			aa.RemoveAttribute("last")
 		xx.SSN("//*[@tv='" TV_GetSelection() "']").SetAttribute("last",1)
 	}GuiControl,-Redraw,SysTreeView321
-	All:=xx.SN("//WorkSpaces/HotKey/descendant-or-self::*|//PassWord/descendant-or-self::*|//Explorer/descendant::*"),TV_Delete()
+	All:=xx.SN("//WorkSpaces/descendant-or-self::*|//PassWord/descendant-or-self::*|//Explorer/descendant-or-self::*"),TV_Delete()
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		if(aa.NodeName="HotKey"){
 			aa.SetAttribute("tv",TV_Add(Convert_Hotkey(ea.HotKey),SSN(aa.ParentNode,"@tv").text))
@@ -359,9 +393,13 @@ PopulateSpaces(SetLast:=0){
 				Hotkey,% ea.Hotkey,PassWordInput,On
 				v.CurrentHotkeys[ea.Hotkey]:="PassWordInput"
 			}
+		}else if(aa.NodeName="Explorer"){
+			aa.SetAttribute("tv",TV_Add("Folder: " ea.Folder,SSN(aa.ParentNode,"@tv").text))
 		}
 	}
-	HotKey,~Enter,Enter,On
+	/*
+		HotKey,~Enter,Enter,On
+	*/
 	GuiControl,+Redraw,SysTreeView321
 	if(tv:=xx.SSN("//*[@last]/@tv").text)
 		TV_Modify(tv,"Select Vis Focus")
@@ -440,7 +478,7 @@ Launch(){
 		Obj.Push(Node)
 	}for a,b in Order{
 		if(b.MaxIndex()>1){
-			All:=SN(b.1,"descendant::Window")
+			All:=SN(b.1,"descendant::*")
 			while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 				if(WinExist("ahk_id" ea.HWND))
 					WinClose,% "ahk_id" ea.HWND
@@ -448,7 +486,7 @@ Launch(){
 		}}else{
 			CreateNew:
 			Node:=b.1
-			All:=SN(Node,"descendant::Window")
+			All:=SN(Node,"descendant::*")
 			x:=y:=New:=0,WindowPosKeep:=[],Win:=[]
 			while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 				Pos:=Monitors().List[ea.Window]
@@ -471,7 +509,17 @@ Launch(){
 						if(Win[ea.Window,b]="")
 							Win[ea.Window,b]:=(b="x"?Pos.Left:b="y"?Pos.Top:0)
 				}}
-				if(ea.URL&&ea.EXE="Chrome.exe"&&!WinExist("ahk_id" SSN(aa,"@hwnd").text)){
+				if(aa.NodeName="Explorer"&&!WinExist("ahk_id" ea.HWND)){
+					New:=1,GetWindows(1,"Explorer")
+					Run,% "Explorer " ea.Folder
+					while(!Current:=GetWindows(0,"Explorer")){
+						Sleep,100
+					}
+					aa.SetAttribute("hwnd",Current)
+					ID:=ahk_id%Current%
+					WinHide,%ID%
+					WinRestore,%ID%
+				}else if(aa.NodeName="Window"&&ea.URL&&ea.EXE="Chrome.exe"&&!WinExist("ahk_id" SSN(aa,"@hwnd").text)){
 					New:=1,GetWindows(1)
 					if(!ea.Username||!ea.Password||!ea.UserNode||!ea.PassWordNode)
 						Run,% "Chrome.exe --new-window " ea.URL,,Hide
@@ -498,11 +546,15 @@ Launch(){
 							WinRestore,%ID%
 							WinMove,%ID%,,% Pos.Left,% Pos.Top
 						}
+						WinWaitActive,%ID%,,4
 						WinMaximize,%ID%
 						WinActivate,%ID%
-					}else
+					}else{
+						/*
+							WinWait,%ID%
+						*/
 						WinMinimize,%ID%
-				}else if(ea.Width){
+				}}else if(ea.Width){
 					if(Pos){
 						Width:=Abs(Abs(Pos.Left)-Abs(Pos.Right)),Height:=Abs(Abs(Pos.Top)-Abs(Pos.Bottom))
 						WinGet,MinMax,MinMax,%ID%
@@ -1029,7 +1081,7 @@ CreatePassWordSequence(){
 	PopulateSpaces()
 }
 Enter(){
-	static HotKey,InputHotkey,Node,Password
+	static HotKey,InputHotkey,Node,Password,InputHotkeyHWND
 	ControlGetFocus,Focus,% v.ID
 	KeyWait,Enter,U
 	if(Focus="SysTreeView321"){
@@ -1046,15 +1098,20 @@ Enter(){
 			Gui,Color,0,0
 			Gui,Font,c0xAAAAAA
 			Gui,Add,Text,,Hotkey Field:
-			Gui,Add,Hotkey,vHotkey w200,% SSN(Node,"@hotkey").text
+			Gui,Add,Hotkey,vHotkey w200 gSetOnlyHotkey Limit1,% SSN(Node,"@hotkey").text
 			Gui,Add,Text,,Manual Hotkey:
-			Gui,Add,Edit,gKeyEditHotkey vInputHotkey w200
+			Hotkey:=SSN(Node,"@hotkey").text
+			Gui,Add,Edit,gKeyEditHotkey vInputHotkey hwndInputHotkeyHWND w200,% (Hotkey~="i)F[13-24]"?Hotkey:"")
 			if(Password:=SSN(Node,"@password").text){
 				Gui,Add,Text,,Password:
 				Gui,Add,Edit,vPassWord w200 Password,% Decode(Password)
 			}
 			Gui,Add,Button,gSaveKey Default,Save HotKey
 			Gui,Show
+			return
+			SetOnlyHotkey:
+			Gui,3:Submit,Nohide
+			ControlSetText,,%Hotkey%,ahk_id%InputHotkeyHWND%
 			return
 			SaveKey:
 			Gui,3:Submit,Nohide
@@ -1064,8 +1121,7 @@ Enter(){
 				Hotkey,%HotKey%,DeadEnd,Off
 			}Catch
 				return
-			Hotkey:=Format("{:T}",Hotkey)
-			Exist:=xx.SSN("//*[@hotkey='" Hotkey "']")
+			Hotkey:=Format("{:T}",Hotkey),Exist:=Format("{:T}",Hotkey),Exist:=xx.SSN("//*[@hotkey='" Hotkey "']")
 			if(Password)
 				Node.SetAttribute("password",Encode(Password))
 			if(Exist.xml=Node.xml){
@@ -1085,19 +1141,26 @@ Enter(){
 			Gui,3:Submit,Nohide
 			GuiControl,3:,msctls_hotkey321,%InputHotkey%
 			return
-		}else if(Node.NodeName="HotKey"){
-			CreateChrome(Node)
+		}else if(Node.NodeName="Explorer"){
+			CreateExplorerWindow(Node)
 		}
-	}
+	}return
+	ButtonOK:
+	Enter()
+	return
 }
 DeadEnd(){
 }
 +Escape::
 Exit:
-All:=xx.SN("//Window[@hwnd]")
+All:=xx.SN("//*[@hwnd]")
+xx.Transform(2)
 while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 	aa.RemoveAttribute("hwnd")
-	WinClose,% "ahk_id" ea.HWND
+	if(SSN(aa,"ancestor::HotKey")){
+		if(WinExist("ahk_id" ea.HWND))
+			WinClose,% "ahk_id" ea.HWND
+	}
 }All:=xx.SN("//*[@entered]")
 while(aa:=All.Item[A_Index-1])
 	aa.RemoveAttribute("entered")
@@ -1201,6 +1264,7 @@ CreateChrome(EditNode:=""){
 	}
 	Gui,2:Destroy
 	Gui,2:Default
+	Gui,+hwndCreateChrome
 	Gui,Color,0,0
 	Gui,Font,c0xAAAAAA
 	ea:=XML.EA(Node)
@@ -1210,15 +1274,19 @@ CreateChrome(EditNode:=""){
 		Gui,Add,Edit,% "w200 v" b.1,% b.3
 	}
 	Gui,Add,Text,,Typed Hotkey: (Press the keys)
-	Gui,Add,Hotkey,w200 vHotkey,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
+	Gui,Add,Hotkey,w200 vHotkey gSetManual Limit1,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
 	Gui,Add,Text,,Manual Hotkey:
-	Gui,Add,Edit,w200 vManual gManualHotkey
-	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",Decode(ea.PassWord)],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
+	Gui,Add,Edit,w200 vManual gManualHotkey hwndManualHWND,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
+	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",Decode(ea.PassWord)],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width",ea.Width],["height","Enter the Height",ea.Height]]{
 		Gui,Add,Text,,% b.2 ":"
 		Gui,Add,Edit,% "w200 v" b.1 (A_Index=3?" Password":""),% b.3
 	}
 	Gui,Add,Button,gSaveChrome Default,&Save
 	Gui,show,,Chrome
+	return
+	SetManual:
+	Gui,2:Submit,Nohide
+	ControlSetText,,%Hotkey%,ahk_id%ManualHWND%
 	return
 	ManualHotkey:
 	Gui,2:Submit,Nohide
@@ -1299,8 +1367,9 @@ GetWindowPositions(){
 		DebugWindow("`n")
 	*/
 }
-CreateExplorerWindow(){
+CreateExplorerWindow(SentNode:=""){
 	static
+	Node:=SentNode
 	ClearLast()
 	All:=xx.SN("//*[@hotkey]")
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
@@ -1313,51 +1382,24 @@ CreateExplorerWindow(){
 	Gui,Font,c0xAAAAAA
 	ea:=XML.EA(Node)
 	Gui,Add,Text,,Width and Height values:`n`t1=Full Width/Height`n`t.5=Half Width/Height`n`t(Both values Blank for FullScreen)
-	for a,b in [["url","Enter URL",ea.URL],["window","Enter the window number to display this on",ea.Window?ea.Window:1]]{
+	for a,b in [["folder","Enter Folder",ea.Folder],["window","Enter the window number to display this on",ea.Window?ea.Window:1]]{
 		Gui,Add,Text,,% b.2 ":"
 		Gui,Add,Edit,% "w200 v" b.1,% b.3
 	}
 	Gui,Add,Text,,Typed Hotkey: (Press the keys)
-	Gui,Add,Hotkey,w200 vHotkey,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
+	Gui,Add,Hotkey,w200 vHotkey gSetExpManual,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
 	Gui,Add,Text,,Manual Hotkey:
-	Gui,Add,Edit,w200 vManual gManualHotkey1
-	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",RegExReplace(Decode(ea.PassWord),".","*")],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
+	Gui,Add,Edit,w200 vManual gManualHotkey1 hwndExpMan
+	for a,b in [["width","Enter the Width",ea.Width],["height","Enter the Height",ea.Height]]{
 		Gui,Add,Text,,% b.2 ":"
-		Gui,Add,Edit,% "w200 v" b.1,% b.3
+		Gui,Add,Edit,% "w200 v" b.1 (A_Index=3?" Password":""),% b.3
 	}
-	/*
-		CREATE THESE WITH <Explorer hotkey="F1"><ExplorerWindow folder="C:\" window="2" max="1"></ExplorerWindow>
-		pass it to the Launch() and then do the thing.
-		Launch() may not work....
-		
-		
-		
-v		
-		
-		;~ for explorer things
-		DetectHiddenWindows,On
-		WinGet,List,List,ahk_exe explorer.exe
-		Explorers:=[]
-		Loop,%List%{
-			Explorers[List%A_Index%]:=1
-		}
-		List1:=List
-		Run,Explorer "C:\Windows\System32"
-		while(List1=List){
-			WinGet,List1,List,ahk_exe explorer.exe
-			Sleep,10
-		}
-		Loop,%List1%{
-			if(!Explorers[HWND:=List1%A_Index%]){
-				WinWaitActive,ahk_id%HWND%
-				WinMove,ahk_id%HWND%,,0,0,400,600
-				WinShow,ahk_id%HWND%
-			}
-		}
-		
-	*/
 	Gui,Add,Button,gSaveChrome1 Default,&Save
 	Gui,show,,Chrome
+	return
+	SetExpManual:
+	Gui,2:Submit,Nohide
+	ControlSetText,,%Hotkey%,ahk_id%ExpMan%
 	return
 	ManualHotkey1:
 	Gui,2:Submit,Nohide
@@ -1373,16 +1415,16 @@ v
 	}else
 		Hotkey:=Hotkey
 	ClearLast()
-	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:User,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode}
+	Obj:={folder:Folder,window:Window,last:1}
 	if(Width&&Height)
-		Obj.width:=Width,Obj.height:=Height
+		Obj.width:=Width,Obj.height:=Height,Node.RemoveAttribute("max")
 	else
 		Obj.max:=1
 	if(Node.XML)
 		for a,b in Obj
 			Node.SetAttribute(a,b)
 	else
-		New:=xx.Add("WorkSpaces/HotKey",,,1),Node:=xx.Under(New,"Window")
+		New:=xx.Add("WorkSpaces/HotKey",,,1),Node:=xx.Under(New,"Explorer")
 	for a,b in Obj
 		Node.SetAttribute(a,b)
 	if(CheckHotkey(SSN(Node,"ancestor-or-self::HotKey"),Hotkey)){
@@ -1390,5 +1432,33 @@ v
 		Node:="",xx.Save(1)
 	}
 	PopulateSpaces()
-	
+	return
+}
+Explorer(){
+	Node:=xx.SSN("//*[@hotkey='" A_ThisHotkey "']")
+	m(Node.xml)
+}
+MainTV(){
+	if(A_GuiEvent="K"){
+		if(A_EventInfo="46")
+			return Delete()
+	}else
+		return ;t(A_EventInfo,A_GuiEvent)
+}
+AddExplorerWindow(){
+	Default(),Node:=xx.SSN("//*[@tv='" TV_GetSelection() "']/ancestor-or-self::HotKey")
+	if(Node.NodeName!="HotKey")
+		return m("Please select a hotkey to add an explorer window to")
+	CreateExplorerWindow(xx.Under(Node,"Explorer"))
+}
+AddChromeWindow(){
+	Default(),Node:=xx.SSN("//*[@tv='" TV_GetSelection() "']/ancestor-or-self::HotKey")
+	if(Node.NodeName!="HotKey")
+		return m("Please select a hotkey to add an explorer window to")
+	CreateChrome(xx.Under(Node,"Window"))
+}
+Default(Control:="SysTreeView321",Win:=1){
+	Gui,%Win%:Default
+	Type:=InStr(Control,"TreeView")?"TreeView":"ListView"
+	Gui,%Win%:%Type%,%Control%
 }
