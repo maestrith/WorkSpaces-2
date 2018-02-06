@@ -1,4 +1,5 @@
 #SingleInstance,Force
+DetectHiddenWindows,On
 IDS:=[],Hotkey:=[],MyWindows:=[]
 global xx:=New XML("Settings"),v:=[]
 if(xx.SSN("//Settings/HotKey")){
@@ -7,7 +8,13 @@ if(xx.SSN("//Settings/HotKey")){
 	while(aa:=All.Item[A_Index-1])
 		Top.AppendChild(aa)
 }
+GetWindowPositions()
 /*
+	Just get the default screen, and call that screen 1{
+		fudge the rest and make GUI's for those screens
+		have a listview that the user can update that screen to whatever
+		identifier number that they choose.
+	}
 	Create Explorer Window
 	Lock Down Window Positions
 	Add More Windows To Chrome things
@@ -17,7 +24,7 @@ Menu,Tray,Add,Open GUI,Gui
 Menu,Tray,Default,Open GUI
 Menu,Tray,Add,Exit,Exit
 if(A_UserName="maest")
-	Gui()
+	Gui(1)
 GetWindows(1)
 OnExit,Exit
 List:=Monitors()
@@ -124,7 +131,8 @@ for a,b in StrSplit(Drives){
 		Send,#{Left}
 		Sleep,500
 		Send,{Enter}
-	}
+	}else
+		m("Drive unavailable.")
 }
 return
 m(x*){
@@ -264,7 +272,7 @@ SSN(node,XPath){
 SN(node,XPath){
 	return node.SelectNodes(XPath)
 }
-Gui(){
+Gui(MonitorChange:=0){
 	Gui,Color,0,0
 	Gui,+hwndMain
 	v.ID:="ahk_id" Main,v.Main:=Main
@@ -275,6 +283,7 @@ Gui(){
 	Gui,Add,Edit,x+M w200 h500,% "Version Information:`r`n" RegExReplace(Info.1,"\\r\\n","`r`n")
 	Gui,Add,Button,xm gCreatePassWordSequence,Create &PassWord Sequence
 	Gui,Add,Button,xm gCreateChrome,Create &Chrome Window
+	Gui,Add,Button,xm gCreateExplorerWindow,Create &Explorer Window
 	Gui,Add,Button,xm gCheckForUpdate,Check For Update
 	Gui,Add,Button,xm gUpdateScript,Update Script
 	Gui,Show,,WorkSpaces 2
@@ -282,7 +291,30 @@ Gui(){
 	for a,b in {"~Enter":"Enter","~Delete":"Delete"}
 		Hotkey,%a%,%b%,On
 	PopulateSpaces()
+	if(MonitorChange){
+		if(xx.SN("//Monitors/Monitor").Length>1){
+			AdjustMonitors()
+		}else{
+		}
+	}
 	return
+}
+AdjustMonitors(){
+	All:=xx.SN("//Monitors/Monitor")
+	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
+		Win:="Show" A_Index
+		Gui,%Win%:Destroy
+		Gui,%Win%:Default
+		Gui,+HWNDHWND
+		Gui,Color,0,0
+		Gui,Font,s100 c0xAAAAAA
+		Gui,Add,Text,,%A_Index%
+		Gui,Show,Hide AutoSize
+		WinGetPos,x,y,w,h,ahk_id%HWND%
+		AddTop:=Round(((ea.Bottom-ea.Top)/2)-(h/2))
+		AddLeft:=Round(((ea.Right-ea.Left)/2)-(w/2))
+		Gui,Show,% "x" ea.Left+AddLeft " y" ea.Top+AddTop,Window%A_Index%
+	}
 }
 PopulateSpaces(SetLast:=0){
 	Gui,1:Default
@@ -295,7 +327,7 @@ PopulateSpaces(SetLast:=0){
 			aa.RemoveAttribute("last")
 		xx.SSN("//*[@tv='" TV_GetSelection() "']").SetAttribute("last",1)
 	}GuiControl,-Redraw,SysTreeView321
-	All:=xx.SN("//WorkSpaces/HotKey/descendant-or-self::*|//PassWord/descendant-or-self::*"),TV_Delete()
+	All:=xx.SN("//WorkSpaces/HotKey/descendant-or-self::*|//PassWord/descendant-or-self::*|//Explorer/descendant::*"),TV_Delete()
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		if(aa.NodeName="HotKey"){
 			aa.SetAttribute("tv",TV_Add(Convert_Hotkey(ea.HotKey),SSN(aa.ParentNode,"@tv").text))
@@ -314,6 +346,7 @@ PopulateSpaces(SetLast:=0){
 			}
 		}
 	}
+	HotKey,~Enter,Enter,On
 	GuiControl,+Redraw,SysTreeView321
 	if(tv:=xx.SSN("//*[@last]/@tv").text)
 		TV_Modify(tv,"Select Vis Focus")
@@ -405,6 +438,13 @@ Launch(){
 			while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 				Pos:=Monitors().List[ea.Window]
 				Pos:=Pos?Pos:Monitors().List.1
+				/*
+					POS CAN BE THE EA OF THE MONITOR NODE THAT WE DECIDE IS THE RIGHT ONE
+					IF THE EA.WINDOW IS AVAILABLE
+						USE THAT
+					ELSE
+						USE THE ONE THAT IS THE DEFAULT OR LOOP BACKWARD UNTIL YOU GET TO A WINDOW?
+				*/
 				/*
 					loop through the Mon:=ea.Window
 						until you find a monitor that exists...
@@ -646,7 +686,308 @@ class Chrome
 			SetTimer, %BoundKeepAlive%, Delete
 			this.Delete("BoundKeepAlive")
 		}
+		
+		class WebSocket
+{
+	__New(WS_URL)
+	{
+		static wb
+		
+		; Create an IE instance
+		Gui, +hWndhOld
+		Gui, New, +hWndhWnd
+		this.hWnd := hWnd
+		Gui, Add, ActiveX, vWB, Shell.Explorer
+		Gui, %hOld%: Default
+		
+		; Write an appropriate document
+		WB.Navigate("about:<!DOCTYPE html><meta http-equiv='X-UA-Compatible'"
+		. "content='IE=edge'><body></body>")
+		while (WB.ReadyState < 4)
+			sleep, 50
+		this.document := WB.document
+		
+		; Add our handlers to the JavaScript namespace
+		this.document.parentWindow.ahk_savews := this._SaveWS.Bind(this)
+		this.document.parentWindow.ahk_event := this._Event.Bind(this)
+		this.document.parentWindow.ahk_ws_url := WS_URL
+		
+		; Add some JavaScript to the page to open a socket
+		Script := this.document.createElement("script")
+		Script.text := "ws = new WebSocket(ahk_ws_url);`n"
+		. "ws.onopen = function(event){ ahk_event('Open', event); };`n"
+		. "ws.onclose = function(event){ ahk_event('Close', event); };`n"
+		. "ws.onerror = function(event){ ahk_event('Error', event); };`n"
+		. "ws.onmessage = function(event){ ahk_event('Message', event); };"
+		this.document.body.appendChild(Script)
 	}
+	
+	; Called by the JS in response to WS events
+	_Event(EventName, Event)
+	{
+		this["On" EventName](Event)
+	}
+	
+	; Sends data through the WebSocket
+	Send(Data)
+	{
+		this.document.parentWindow.ws.send(Data)
+	}
+	
+	; Closes the WebSocket connection
+	Close(Code:=1000, Reason:="")
+	{
+		this.document.parentWindow.ws.close(Code, Reason)
+	}
+	
+	; Closes and deletes the WebSocket, removing
+	; references so the class can be garbage collected
+	Disconnect()
+	{
+		if this.hWnd
+		{
+			this.Close()
+			Gui, % this.hWnd ": Destroy"
+			this.hWnd := False
+		}
+	}
+}
+	}
+	
+	Jxon_Load(ByRef src, args*)
+{
+	static q := Chr(34)
+
+	key := "", is_key := false
+	stack := [ tree := [] ]
+	is_arr := { (tree): 1 }
+	next := q . "{[01234567890-tfn"
+	pos := 0
+	while ( (ch := SubStr(src, ++pos, 1)) != "" )
+	{
+		if InStr(" `t`n`r", ch)
+			continue
+		if !InStr(next, ch, true)
+		{
+			ln := ObjLength(StrSplit(SubStr(src, 1, pos), "`n"))
+			col := pos - InStr(src, "`n",, -(StrLen(src)-pos+1))
+
+			msg := Format("{}: line {} col {} (char {})"
+			,   (next == "")      ? ["Extra data", ch := SubStr(src, pos)][1]
+			  : (next == "'")     ? "Unterminated string starting at"
+			  : (next == "\")     ? "Invalid \escape"
+			  : (next == ":")     ? "Expecting ':' delimiter"
+			  : (next == q)       ? "Expecting object key enclosed in double quotes"
+			  : (next == q . "}") ? "Expecting object key enclosed in double quotes or object closing '}'"
+			  : (next == ",}")    ? "Expecting ',' delimiter or object closing '}'"
+			  : (next == ",]")    ? "Expecting ',' delimiter or array closing ']'"
+			  : [ "Expecting JSON value(string, number, [true, false, null], object or array)"
+			    , ch := SubStr(src, pos, (SubStr(src, pos)~="[\]\},\s]|$")-1) ][1]
+			, ln, col, pos)
+
+			throw Exception(msg, -1, ch)
+		}
+
+		is_array := is_arr[obj := stack[1]]
+
+		if i := InStr("{[", ch)
+		{
+			val := (proto := args[i]) ? new proto : {}
+			is_array? ObjPush(obj, val) : obj[key] := val
+			ObjInsertAt(stack, 1, val)
+			
+			is_arr[val] := !(is_key := ch == "{")
+			next := q . (is_key ? "}" : "{[]0123456789-tfn")
+		}
+
+		else if InStr("}]", ch)
+		{
+			ObjRemoveAt(stack, 1)
+			next := stack[1]==tree ? "" : is_arr[stack[1]] ? ",]" : ",}"
+		}
+
+		else if InStr(",:", ch)
+		{
+			is_key := (!is_array && ch == ",")
+			next := is_key ? q : q . "{[0123456789-tfn"
+		}
+
+		else ; string | number | true | false | null
+		{
+			if (ch == q) ; string
+			{
+				i := pos
+				while i := InStr(src, q,, i+1)
+				{
+					val := StrReplace(SubStr(src, pos+1, i-pos-1), "\\", "\u005C")
+					static end := A_AhkVersion<"2" ? 0 : -1
+					if (SubStr(val, end) != "\")
+						break
+				}
+				if !i ? (pos--, next := "'") : 0
+					continue
+
+				pos := i ; update pos
+
+				  val := StrReplace(val,    "\/",  "/")
+				, val := StrReplace(val, "\" . q,    q)
+				, val := StrReplace(val,    "\b", "`b")
+				, val := StrReplace(val,    "\f", "`f")
+				, val := StrReplace(val,    "\n", "`n")
+				, val := StrReplace(val,    "\r", "`r")
+				, val := StrReplace(val,    "\t", "`t")
+
+				i := 0
+				while i := InStr(val, "\",, i+1)
+				{
+					if (SubStr(val, i+1, 1) != "u") ? (pos -= StrLen(SubStr(val, i)), next := "\") : 0
+						continue 2
+
+					; \uXXXX - JSON unicode escape sequence
+					xxxx := Abs("0x" . SubStr(val, i+2, 4))
+					if (A_IsUnicode || xxxx < 0x100)
+						val := SubStr(val, 1, i-1) . Chr(xxxx) . SubStr(val, i+6)
+				}
+
+				if is_key
+				{
+					key := val, next := ":"
+					continue
+				}
+			}
+
+			else ; number | true | false | null
+			{
+				val := SubStr(src, pos, i := RegExMatch(src, "[\]\},\s]|$",, pos)-pos)
+			
+			; For numerical values, numerify integers and keep floats as is.
+			; I'm not yet sure if I should numerify floats in v2.0-a ...
+				static number := "number", integer := "integer"
+				if val is %number%
+				{
+					if val is %integer%
+						val += 0
+				}
+			; in v1.1, true,false,A_PtrSize,A_IsUnicode,A_Index,A_EventInfo,
+			; SOMETIMES return strings due to certain optimizations. Since it
+			; is just 'SOMETIMES', numerify to be consistent w/ v2.0-a
+				else if (val == "true" || val == "false")
+					val := %value% + 0
+			; AHK_H has built-in null, can't do 'val := %value%' where value == "null"
+			; as it would raise an exception in AHK_H(overriding built-in var)
+				else if (val == "null")
+					val := ""
+			; any other values are invalid, continue to trigger error
+				else if (pos--, next := "#")
+					continue
+				
+				pos += i-1
+			}
+			
+			is_array? ObjPush(obj, val) : obj[key] := val
+			next := obj==tree ? "" : is_array ? ",]" : ",}"
+		}
+	}
+
+	return tree[1]
+}
+
+Jxon_Dump(obj, indent:="", lvl:=1)
+{
+	static q := Chr(34)
+
+	if IsObject(obj)
+	{
+		static Type := Func("Type")
+		if Type ? (Type.Call(obj) != "Object") : (ObjGetCapacity(obj) == "")
+			throw Exception("Object type not supported.", -1, Format("<Object at 0x{:p}>", &obj))
+
+		prefix := SubStr(A_ThisFunc, 1, InStr(A_ThisFunc, ".",, 0))
+		fn_t := prefix "Jxon_True",  obj_t := this ? %fn_t%(this) : %fn_t%()
+		fn_f := prefix "Jxon_False", obj_f := this ? %fn_f%(this) : %fn_f%()
+
+		if (&obj == &obj_t)
+			return "true"
+		else if (&obj == &obj_f)
+			return "false"
+
+		is_array := 0
+		for k in obj
+			is_array := k == A_Index
+		until !is_array
+
+		static integer := "integer"
+		if indent is %integer%
+		{
+			if (indent < 0)
+				throw Exception("Indent parameter must be a postive integer.", -1, indent)
+			spaces := indent, indent := ""
+			Loop % spaces
+				indent .= " "
+		}
+		indt := ""
+		Loop, % indent ? lvl : 0
+			indt .= indent
+
+		this_fn := this ? Func(A_ThisFunc).Bind(this) : A_ThisFunc
+		lvl += 1, out := "" ; Make #Warn happy
+		for k, v in obj
+		{
+			if IsObject(k) || (k == "")
+				throw Exception("Invalid object key.", -1, k ? Format("<Object at 0x{:p}>", &obj) : "<blank>")
+			
+			if !is_array
+				out .= ( ObjGetCapacity([k], 1) ? %this_fn%(k) : q . k . q ) ;// key
+				    .  ( indent ? ": " : ":" ) ; token + padding
+			out .= %this_fn%(v, indent, lvl) ; value
+			    .  ( indent ? ",`n" . indt : "," ) ; token + indent
+		}
+
+		if (out != "")
+		{
+			out := Trim(out, ",`n" . indent)
+			if (indent != "")
+				out := "`n" . indt . out . "`n" . SubStr(indt, StrLen(indent)+1)
+		}
+		
+		return is_array ? "[" . out . "]" : "{" . out . "}"
+	}
+
+	; Number
+	else if (ObjGetCapacity([obj], 1) == "")
+		return obj
+
+	; String (null -> not supported by AHK)
+	if (obj != "")
+	{
+		  obj := StrReplace(obj,  "\",    "\\")
+		, obj := StrReplace(obj,  "/",    "\/")
+		, obj := StrReplace(obj,    q, "\" . q)
+		, obj := StrReplace(obj, "`b",    "\b")
+		, obj := StrReplace(obj, "`f",    "\f")
+		, obj := StrReplace(obj, "`n",    "\n")
+		, obj := StrReplace(obj, "`r",    "\r")
+		, obj := StrReplace(obj, "`t",    "\t")
+
+		static needle := (A_AhkVersion<"2" ? "O)" : "") . "[^\x20-\x7e]"
+		while RegExMatch(obj, needle, m)
+			obj := StrReplace(obj, m[0], Format("\u{:04X}", Ord(m[0])))
+	}
+	
+	return q . obj . q
+}
+
+Jxon_True()
+{
+	static obj := {}
+	return obj
+}
+
+Jxon_False()
+{
+	static obj := {}
+	return obj
+}
 }
 
 Login(Node,ChromeInst){
@@ -909,4 +1250,129 @@ CheckHotkey(Node,Key){
 		return 1
 	}else
 		return 0,m("Hotkey Exists")
+}
+GetWindowPositions(){
+	SysGet,Monitors,MonitorCount
+	SysGet,Main,MonitorPrimary
+	Loop,%Monitors%{
+		SysGet,Mon,MonitorWorkArea,%A_Index%
+		DebugWindow("Top: " MonTop " - Left: " MonLeft " - Right: " MonRight " - Bottom: " MonBottom "`n")
+	}
+	Loop,%Monitors%{
+		SysGet,Mon,MonitorWorkArea,%A_Index%
+		if(xx.SSN("//Monitor[" A_Index "][@main]")&&A_Index!=Main){
+			Alert:=1
+			Break
+		}
+		if(!xx.SSN("//*[@left='" MonLeft "' and @top='" MonTop "']")){
+			Alert:=1
+			Break
+		}
+	}if(Alert){
+		Top:=xx.ReCreate("//Monitors","Monitors")
+		Loop,%Monitors%{
+			SysGet,Mon,MonitorWorkArea,%A_Index%
+			Node:=xx.Add("Monitors/Monitor",{left:MonLeft,top:MonTop,right:MonRight,bottom:MonBottom},,1)
+			if(A_Index=Main)
+				Node.SetAttribute("main",1)
+		}
+		Gui(1)
+	}
+	DebugWindow("`n")
+}
+CreateExplorerWindow(){
+	static
+	ClearLast()
+	All:=xx.SN("//*[@hotkey]")
+	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
+		Try
+			Hotkey,% ea.Hotkey,Off
+	}
+	Gui,2:Destroy
+	Gui,2:Default
+	Gui,Color,0,0
+	Gui,Font,c0xAAAAAA
+	ea:=XML.EA(Node)
+	Gui,Add,Text,,Width and Height values:`n`t1=Full Width/Height`n`t.5=Half Width/Height`n`t(Both values Blank for FullScreen)
+	for a,b in [["url","Enter URL",ea.URL],["window","Enter the window number to display this on",ea.Window?ea.Window:1]]{
+		Gui,Add,Text,,% b.2 ":"
+		Gui,Add,Edit,% "w200 v" b.1,% b.3
+	}
+	Gui,Add,Text,,Typed Hotkey: (Press the keys)
+	Gui,Add,Hotkey,w200 vHotkey,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
+	Gui,Add,Text,,Manual Hotkey:
+	Gui,Add,Edit,w200 vManual gManualHotkey1
+	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",RegExReplace(Decode(ea.PassWord),".","*")],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width"],["height","Enter the Height"]]{
+		Gui,Add,Text,,% b.2 ":"
+		Gui,Add,Edit,% "w200 v" b.1,% b.3
+	}
+	/*
+		CREATE THESE WITH <Explorer hotkey="F1"><ExplorerWindow folder="C:\" window="2" max="1"></ExplorerWindow>
+		pass it to the Launch() and then do the thing.
+		Launch() may not work....
+		
+		
+		
+v		
+		
+		;~ for explorer things
+		DetectHiddenWindows,On
+		WinGet,List,List,ahk_exe explorer.exe
+		Explorers:=[]
+		Loop,%List%{
+			Explorers[List%A_Index%]:=1
+		}
+		List1:=List
+		Run,Explorer "C:\Windows\System32"
+		while(List1=List){
+			WinGet,List1,List,ahk_exe explorer.exe
+			Sleep,10
+		}
+		Loop,%List1%{
+			if(!Explorers[HWND:=List1%A_Index%]){
+				WinWaitActive,ahk_id%HWND%
+				WinMove,ahk_id%HWND%,,0,0,400,600
+				WinShow,ahk_id%HWND%
+			}
+		}
+		
+	*/
+	Gui,Add,Button,gSaveChrome1 Default,&Save
+	Gui,show,,Chrome
+	return
+	ManualHotkey1:
+	Gui,2:Submit,Nohide
+	GuiControl,2:,msctls_Hotkey321,%Manual%
+	return
+	SaveChrome1:
+	Gui,2:Submit,Nohide
+	if(Manual){
+		Try{
+			Hotkey,%Manual%,DeadEnd,On
+			Hotkey:=Manual
+		}
+	}else
+		Hotkey:=Hotkey
+	ClearLast()
+	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:User,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode}
+	if(Width&&Height)
+		Obj.width:=Width,Obj.height:=Height
+	else
+		Obj.max:=1
+	if(Node.XML)
+		for a,b in Obj
+			Node.SetAttribute(a,b)
+	else
+		New:=xx.Add("WorkSpaces/HotKey",,,1),Node:=xx.Under(New,"Window")
+	for a,b in Obj
+		Node.SetAttribute(a,b)
+	if(CheckHotkey(SSN(Node,"ancestor-or-self::HotKey"),Hotkey)){
+		Gui,2:Destroy
+		Node:="",xx.Save(1)
+	}
+	PopulateSpaces()
+	
+}
+DebugWindow(Text,Clear:=0,LineBreak:=0,Sleep:=0,AutoHide:=0,MsgBox:=0){
+	x:=ComObjActive("{DBD5A90A-A85C-11E4-B0C7-43449580656B}"),x.DebugWindow(Text,Clear,LineBreak,Sleep,AutoHide,MsgBox)
 }
