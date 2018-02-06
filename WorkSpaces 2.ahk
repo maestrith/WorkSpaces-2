@@ -1256,7 +1256,9 @@ GetWindowPositions(){
 	SysGet,Main,MonitorPrimary
 	Loop,%Monitors%{
 		SysGet,Mon,MonitorWorkArea,%A_Index%
-		DebugWindow("Top: " MonTop " - Left: " MonLeft " - Right: " MonRight " - Bottom: " MonBottom "`n")
+		/*
+			DebugWindow("Top: " MonTop " - Left: " MonLeft " - Right: " MonRight " - Bottom: " MonBottom "`n")
+		*/
 	}
 	Loop,%Monitors%{
 		SysGet,Mon,MonitorWorkArea,%A_Index%
@@ -1278,7 +1280,9 @@ GetWindowPositions(){
 		}
 		Gui(1)
 	}
-	DebugWindow("`n")
+	/*
+		DebugWindow("`n")
+	*/
 }
 CreateExplorerWindow(){
 	static
@@ -1372,7 +1376,4 @@ v
 	}
 	PopulateSpaces()
 	
-}
-DebugWindow(Text,Clear:=0,LineBreak:=0,Sleep:=0,AutoHide:=0,MsgBox:=0){
-	x:=ComObjActive("{DBD5A90A-A85C-11E4-B0C7-43449580656B}"),x.DebugWindow(Text,Clear,LineBreak,Sleep,AutoHide,MsgBox)
 }
