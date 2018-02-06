@@ -26,6 +26,8 @@ Menu,Tray,Default,Open GUI
 Menu,Tray,Add,Exit,Exit
 if(A_UserName="maest")
 	Gui(1)
+else
+	PopulateSpaces()
 GetWindows(1)
 OnExit,Exit
 List:=Monitors()
