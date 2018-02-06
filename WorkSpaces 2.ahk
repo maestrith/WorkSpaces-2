@@ -2,6 +2,7 @@
 DetectHiddenWindows,On
 IDS:=[],Hotkey:=[],MyWindows:=[]
 global xx:=New XML("Settings"),v:=[]
+ComObjError(0)
 if(xx.SSN("//Settings/HotKey")){
 	All:=xx.SN("//Settings/HotKey")
 	Top:=xx.Add("WorkSpaces")
@@ -290,6 +291,7 @@ Gui(MonitorChange:=0){
 	Hotkey,IfWinActive,%ID%
 	for a,b in {"~Enter":"Enter","~Delete":"Delete"}
 		Hotkey,%a%,%b%,On
+	Hotkey,IfWinActive
 	PopulateSpaces()
 	if(MonitorChange){
 		if(xx.SN("//Monitors/Monitor").Length>1){
@@ -298,11 +300,17 @@ Gui(MonitorChange:=0){
 		}
 	}
 	return
+	GuiClose:
+	for a,b in v.Windows
+		Gui,%b%:Destroy
+	Gui,1:Destroy
+	return
 }
 AdjustMonitors(){
-	All:=xx.SN("//Monitors/Monitor")
+	All:=xx.SN("//Monitors/Monitor"),v.Windows:=[]
 	while(aa:=All.Item[A_Index-1],ea:=XML.EA(aa)){
 		Win:="Show" A_Index
+		v.Windows.Push(Win)
 		Gui,%Win%:Destroy
 		Gui,%Win%:Default
 		Gui,+HWNDHWND
@@ -332,6 +340,7 @@ PopulateSpaces(SetLast:=0){
 		if(aa.NodeName="HotKey"){
 			aa.SetAttribute("tv",TV_Add(Convert_Hotkey(ea.HotKey),SSN(aa.ParentNode,"@tv").text))
 			if(ea.Hotkey){
+				HotKey,IfWinActive
 				Hotkey,% ea.HotKey,Launch,On
 				v.CurrentHotkeys[ea.Hotkey]:="Launch"
 		}}else if(aa.NodeName="Window"){
@@ -341,6 +350,7 @@ PopulateSpaces(SetLast:=0){
 		else if(aa.NodeName="Key"){
 			aa.SetAttribute("tv",TV_Add("Key: " (ea.Hotkey?Convert_Hotkey(ea.Hotkey):"Undefined"),SSN(aa.ParentNode,"@tv").text))
 			if(ea.Hotkey){
+				HotKey,IfWinActive
 				Hotkey,% ea.Hotkey,PassWordInput,On
 				v.CurrentHotkeys[ea.Hotkey]:="PassWordInput"
 			}
