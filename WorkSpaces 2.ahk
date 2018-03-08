@@ -1057,33 +1057,38 @@ Jxon_False()
 }
 }
 
+
+^j::
+ChromeInst:=new Chrome("ChromeProfile")
+FileCreateDir, ChromeProfile
+Tab:=ChromeInst.GetTab()
+Tab.Call("Page.navigate",{"url":"https://cloud.digitalocean.com/login"})
+Tab.WaitForLoad()
+RootNode := Tab.Call("DOM.getDocument").root
+Tab.Evaluate("document.querySelector('input[type=submit]').click();")
+return
+
+
 Login(Node,ChromeInst){
-	static
-	ea:=xx.EA(Node)
 	FileCreateDir, ChromeProfile
-	Tab:=ChromeInst.GetTab()
-	Tab.Call("Page.navigate",{"url":ea.URL})
+	Tab:=ChromeInst.GetTab(),ea:=XML.EA(Node),Tab.Call("Page.navigate",{"url":ea.URL})
 	Tab.WaitForLoad()
-	RootNode := Tab.Call("DOM.getDocument").root
-	NameNode := Tab.Call("DOM.querySelector", {"nodeId": RootNode.nodeId, "selector": "input[name=" ea.UserNode "]"})
-	Tab.Call("DOM.setAttributeValue", {"nodeId": NameNode.NodeId, "name": "value", "value":ea.UserName})
-	NameNode := Tab.Call("DOM.querySelector", {"nodeId": RootNode.nodeId, "selector": "input[name=" ea.PasswordNode "]"})
-	Tab.Call("DOM.setAttributeValue", {"nodeId": NameNode.NodeId, "name": "value", "value": Decode(ea.PassWord)})
-	NameNode := Tab.Call("DOM.querySelector", {"nodeId": RootNode.nodeId, "selector": "button[id=yui-gen1-button]"})
-	;here
-	/*
-		for a,b in NameNode
-			m(a,b)
-	*/
-	/*
-		<button type="button" tabindex="0" id="yui-gen1-button">log in</button>
-	*/
-	/*
-		Tab.Evaluate("document.querySelector('button[type=submit]').click();")
-	*/
-	;yui-gen1-button
-	Tab.Evaluate("document.querySelector('" ea.SubmitType "[" (ea.SubmitID?"id=" ea.SubmitID:"type=Submit") "]').click();")
-	;~ Tab.Evaluate("document.querySelector('nodeID=" NameNode.nodeID "').click();")
+	RootNode:=Tab.Call("DOM.getDocument").root
+	for a,b in ea
+		List.=a " = " b "`n"
+	if(ea.Username&&ea.Usernode){
+		User:=ea.IDUser?"id=":ea.NameUser?"name=":ea.TypeUser?"type=":""
+		NameNode:=Tab.Call("DOM.querySelector",{"nodeId":RootNode.nodeId,"selector":"input[" User ea.UserNode "]"})
+		Tab.Call("DOM.setAttributeValue",{"nodeId":NameNode.NodeId,"name":"value","value":ea.UserName})
+		DoClick:=1
+	}if(ea.PassWordNode&&ea.Password){
+		Pass:=ea.IDPass?"id=":ea.NamePass?"name=":ea.TypePass?"type=":""
+		NameNode:=Tab.Call("DOM.querySelector",{"nodeId":RootNode.nodeId,"selector":"input[" Pass ea.PassWordNode "]"})
+		Tab.Call("DOM.setAttributeValue",{"nodeId":NameNode.NodeId,"name":"value","value":ea.PassWord})
+		DoClick:=1
+	}if(DoClick){
+		Tab.Evaluate("document.querySelector('input[" (ea.NameSub?"name=":ea.IDSub?"id=":"type=") (ea.SubmitID?ea.SubmitID:"submit") "]').click();")
+	}
 }
 CreatePassWordSequence(){
 	InputBox,Keys,Number Of Keys,Enter the number of keys that you want to have in this sequence,,,,,,,,4
@@ -1276,27 +1281,42 @@ CreateChrome(EditNode:=""){
 		Try
 			Hotkey,% ea.Hotkey,Off
 	}
-	Gui,2:Destroy
-	Gui,2:Default
-	Gui,+hwndCreateChrome
-	Gui,Color,0,0
-	Gui,Font,c0xAAAAAA
-	ea:=XML.EA(Node)
-	Gui,Add,Text,,Width and Height values:`n`t1=Full Width/Height`n`t.5=Half Width/Height`n`t(Both values Blank for FullScreen)
+	NewWin:=new GUIKeep("CreateChrome")
 	for a,b in [["url","Enter URL",ea.URL],["window","Enter the window number to display this on",ea.Window?ea.Window:1]]{
-		Gui,Add,Text,,% b.2 ":"
-		Gui,Add,Edit,% "w200 v" b.1,% b.3
+		NewWin.Add("Text,," b.2 ":","Edit,w200 v" b.1 (A_Index=2?" Number":"") "," b.3)
 	}
-	Gui,Add,Text,,Typed Hotkey: (Press the keys)
-	Gui,Add,Hotkey,w200 vHotkey gSetManual Limit1,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
-	Gui,Add,Text,,Manual Hotkey:
-	Gui,Add,Edit,w200 vManual gManualHotkey hwndManualHWND,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
-	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",Decode(ea.PassWord)],["passwordnode","Password Node",ea.PasswordNode],["submittype","Submit Type",(ea.submittype?ea.submittype:"button")],["submitid","Submit ID",ea.submitid],["width","Enter the Width",ea.Width],["height","Enter the Height",ea.Height]]{
-		Gui,Add,Text,,% b.2 ":"
-		Gui,Add,Edit,% "w200 v" b.1 (A_Index=3?" Password":""),% b.3
-	}
-	Gui,Add,Button,gSaveChrome Default,&Save
-	Gui,show,,Chrome
+	NewWin.Add("Text,,Typed Hotkey: (Press the keys)","Hotkey,w200 vHotkey gSetManual Limit1," SSN(Node,"ancestor-or-self::HotKey/@hotkey").text,"Text,,Manual Hotkey:","Edit,w200 vManual gManualHotkey hwndManualHWND," SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
+			,"Text,,User Name:"
+			,"Edit,vusername w200"
+			,"Text,,User Attribute:"
+			,"Edit,vusernode w200"
+			,"Radio,viduser Checked,id"
+			,"Radio,x+M vtypeuser,type"
+			,"Radio,x+M vnameuser,name"
+			,"Text,xm,Password:"
+			,"Edit,vpassword w200"
+			,"Text,,Password Attribute:"
+			,"Edit,vpasswordnode w200"
+			,"Radio,vidpass Checked,id"
+			,"Radio,x+M vtypepass,type"
+			,"Radio,x+M vnamepass,name"
+			,"Text,xm,Submit ID (Usually submit:type)"
+			,"Edit,w200 vsubmitid,submit"
+			,"Radio,vtypesub Checked,type"
+			,"Radio,x+M vidsub,id"
+			,"Radio,x+M vnamesub,name"
+			,"Button,xm gCCGo Default,Go")
+	for a,b in XML.EA(Node)
+		NewWin.SetText(a,b)
+	NewWin.Show("Flan")
+	;here
+	return
+	CCGo:
+	Obj:=NewWin[]
+	for a,b in Obj
+		Node.SetAttribute(a,b)
+	NewWin.Exit()
+	PopulateSpaces(),Node:=""
 	return
 	SetManual:
 	Gui,2:Submit,Nohide
@@ -1305,34 +1325,6 @@ CreateChrome(EditNode:=""){
 	ManualHotkey:
 	Gui,2:Submit,Nohide
 	GuiControl,2:,msctls_Hotkey321,%Manual%
-	return
-	SaveChrome:
-	Gui,2:Submit,Nohide
-	if(Manual){
-		Try{
-			Hotkey,%Manual%,DeadEnd,On
-			Hotkey:=Manual
-		}
-	}else
-		Hotkey:=Hotkey
-	ClearLast()
-	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:User,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode,submitid:SubmitID,submittype:SubmitType}
-	if(Width&&Height)
-		Obj.width:=Width,Obj.height:=Height
-	else
-		Obj.max:=1
-	if(Node.XML)
-		for a,b in Obj
-			Node.SetAttribute(a,b)
-	else
-		New:=xx.Add("WorkSpaces/HotKey",,,1),Node:=xx.Under(New,"Window")
-	for a,b in Obj
-		Node.SetAttribute(a,b)
-	if(CheckHotkey(SSN(Node,"ancestor-or-self::HotKey"),Hotkey)){
-		Gui,2:Destroy
-		Node:="",xx.Save(1)
-	}
-	PopulateSpaces()
 	return
 	2GuiEscape:
 	Gui,2:Destroy
@@ -1475,4 +1467,221 @@ Default(Control:="SysTreeView321",Win:=1){
 	Gui,%Win%:Default
 	Type:=InStr(Control,"TreeView")?"TreeView":"ListView"
 	Gui,%Win%:%Type%,%Control%
+}
+class GUIKeep{
+	static table:=[],showlist:=[]
+	__Get(x*){
+		if(x.1)
+			return this.Var[x.1]
+		return this.Add()
+	}__New(win,parent:=""){
+		DetectHiddenWindows,On
+		Gui,%win%:Destroy
+		Gui,%win%:+hwndhwnd -DPIScale
+		Gui,%win%:Margin,5,5
+		Gui,%win%:Font,c0xAAAAAA
+		Gui,%win%:Color,0,0
+		this.All:=[],this.gui:=[],this.hwnd:=hwnd,this.con:=[],this.XML:=new XML("GUI"),this.ahkid:=this.id:="ahk_id" hwnd,this.win:=win,this.Table[win]:=this,this.var:=[],this.Radio:=[],this.Static:=[]
+		for a,b in {border:A_OSVersion~="^10"?3:0,caption:DllCall("GetSystemMetrics",int,4,"int")}
+			this[a]:=b
+		Gui,%win%:+LabelGUIKeep.
+		Gui,%win%:Default
+		return this
+	}Add(info*){
+		static
+		if(!info.1){
+			var:=[]
+			Gui,% this.Win ":Submit",Nohide
+			for a,b in this.var{
+				if(b.Type="s")
+					Var[a]:=b.sc.GetUNI()
+				else
+					var[a]:=%a%
+			}return var
+		}for a,b in info{
+			i:=StrSplit(b,","),newpos:=""
+			if(i.1="ComboBox")
+				WinGet,ControlList,ControlList,% this.ID
+			if(i.1="s"){
+				Pos:=RegExReplace(i.2,"OU)\s*\b(v.+)\b")
+				sc:=new s(1,{Pos:Pos}),hwnd:=sc.sc
+			}else
+				Gui,% this.win ":Add",% i.1,% i.2 " hwndhwnd",% i.3
+			if(RegExMatch(i.2,"U)\bg(.*)\b",Label))
+				Label:=Label1
+			if(RegExMatch(i.2,"U)\bv(.*)\b",var))
+				this.var[var1]:={hwnd:HWND,type:i.1,sc:sc}
+			this.con[hwnd]:=[]
+			if(i.4!="")
+				this.con[hwnd,"pos"]:=i.4,this.resize:=1
+			if(i.5)
+				this.Static.Push(hwnd)
+			Name:=Var1?Var1:Label
+			if(i.1="ListView"||i.1="TreeView")
+				this.All[Name]:={HWND:HWND,Name:Name,Type:i.1,ID:"ahk_id" HWND}
+			if(i.1="ComboBox"){
+				WinGet,ControlList2,ControlList,% this.ID
+				Obj:=StrSplit(ControlList2,"`n"),LeftOver:=[]
+				for a,b in Obj
+					LeftOver[b]:=1
+				for a,b in Obj2:=StrSplit(ControlList,"`n")
+					LeftOver.Delete(b)
+				for a in LeftOver{
+					if(!InStr(a,"ComboBox")){
+						ControlGet,Married,HWND,,%a%,% this.ID
+						this.XML.Add("Control",{hwnd:Married,id:"ahk_id" Married+0,name:Name,type:"Edit"},,1)
+					}
+				}
+				
+			}
+			this.XML.Add("Control",{hwnd:HWND,id:"ahk_id" HWND,name:Name,type:i.1},,1)
+	}}Close(a:=""){
+		/*
+			this:=GUIKeep.table[A_Gui]
+			if(A_Gui=1)
+				Exit()
+		*/
+	}ContextMenu(x*){
+		if(IsFunc(Function:=A_Gui "GuiContextMenu"))
+			%Function%(x*)
+	}Current(XPath,Number){
+		Node:=Settings.SSN(XPath)
+		all:=SN(Node.ParentNode,"*")
+		while(aa:=all.item[A_Index-1])
+			(A_Index=Number?aa.SetAttribute("last",1):aa.RemoveAttribute("last"))
+	}Default(Name:=""){
+		Gui,% this.Win ":Default"
+		ea:=this.XML.EA("//Control[@name='" Name "']")
+		if(ea.Type~="TreeView|ListView")
+			Gui,% this.Win ":" ea.Type,% ea.HWND
+	}DisableAll(){
+		for a,b in this.All{
+			GuiControl,1:+g,% b.HWND
+			GuiControl,1:-Redraw,% b.HWND
+		}
+	}DropFiles(filelist,ctrl,x,y){
+		df:="DropFiles"
+		if(IsFunc(df))
+			%df%(filelist,ctrl,x,y)
+	}EnableAll(){
+		for a,b in this.All{
+			GuiControl,% this.Win ":+g" b.Name,% b.HWND
+			GuiControl,% this.Win ":+Redraw",% b.HWND
+		}
+	}Escape(){
+		KeyWait,Escape,U
+		if(A_Gui!=1)
+			Gui,%A_Gui%:Destroy
+		return 
+	}Exit(){
+		Info:=MainWin[]
+		Default(),Index1:=LV_GetNext(),Default("ShowCampaign"),Index2=LV_GetNext()
+		Settings.Add("Last",{tab:Info.Tab,SysListView321:Index1,SysListView322:Index2})
+		if(A_Gui=1){
+			MainWin.SavePos()
+			Settings.Save(1)
+			ExitApp
+		}else
+			Gui,% this.Win ":Destroy"
+		return
+	}Focus(Control){
+		this.Default(Control)
+		ControlFocus,,% this.GetCtrlXML(Control,"id")
+	}GetCtrl(Name,Value:="hwnd"){
+		return this.All[Name]
+	}GetCtrlXML(Name,Value:="hwnd"){
+		return Info:=this.XML.SSN("//*[@name='" Name "']/@" Value).text
+	}GetPos(){
+		Gui,% this.win ":Show",AutoSize Hide
+		WinGet,cl,ControlListHWND,% this.ahkid
+		pos:=this.winpos(),ww:=pos.w,wh:=pos.h,flip:={x:"ww",y:"wh"}
+		for index,hwnd in StrSplit(cl,"`n"){
+			obj:=this.gui[hwnd]:=[]
+			ControlGetPos,x,y,w,h,,ahk_id%hwnd%
+			for c,d in StrSplit(this.con[hwnd].pos)
+				d~="w|h"?(obj[d]:=%d%-w%d%):d~="x|y"?(obj[d]:=%d%-(d="y"?wh+this.Caption+this.Border:ww+this.Border))
+		}
+		Gui,% this.win ":+MinSize800x665"
+	}Map(Location,Info:=""){
+		static Map:={PopulateAccounts:["PopulateAccounts"],PopulateAllFilters:["PopulateMGList"],PopulateMGList:["PopulateMGList"]
+				  ,PopulateMGListItems:["PopulateMGListItems"],PopulateMGTags:["PopulateMGTags"],PopulateMGMessages:["PopulateMGMessages"]}
+		if(!Map[Location])
+			return m("Working on: " Location,ExtraInfo.1,ExtraInfo.2)
+		this.DisableAll()
+		for a,b in Map[Location]{
+			if(b.1="Fix")
+				return m("Work On: " a)
+			MainWin.Busy:=1,MainWin.Function:=b.1?b.1:b
+			Info:=%b%(Info)
+			if(Info.tv){
+				TV_Modify(Info.tv,"Select Vis Focus")
+			}
+			while(MainWin.Busy){
+				t("It's busy",A_TickCount,MainWin.Function,"Hmm.")
+			}
+		}this.EnableAll()
+		return Info
+	}SavePos(){
+		if(!top:=Settings.SSN("//gui/position[@window='" this.win "']"))
+			top:=Settings.Add("gui/position",{window:this.Win},,1)
+		top.text:=this.WinPos().text
+	}SetText(Control,Text:=""){
+		if((sc:=this.Var[Control].sc).sc){
+			Len:=VarSetCapacity(tt,StrPut(Text,"UTF-8")-1)
+			/*
+				m(Text)
+			*/
+			/*
+				Sleep,500
+			*/
+			/*
+				m(sc.2137)
+			*/
+			StrPut(Text,&tt,Len,"UTF-8")
+			sc.2181(0,&tt)
+		}else{
+			GuiControl,% this.Win ":",% this.GetCtrlXML(Control),%Text%
+		}
+	}Show(name){
+		this.GetPos(),Pos:=this.Resize=1?"":"AutoSize",this.name:=name
+		if(this.resize=1)
+			Gui,% this.win ":+Resize"
+		GUIKeep.showlist.push(this)
+		SetTimer,guikeepshow,-100
+		return
+		GUIKeepShow:
+		while(this:=GUIKeep.Showlist.Pop()){
+			Gui,% this.win ":Show",% Settings.SSN("//gui/position[@window='" this.win "']").text " " pos,% this.name
+			this.size()
+			if(this.resize!=1){
+				Gui,% this.win ":Show",AutoSize
+			}
+			WinActivate,% this.id
+		}
+		return
+	}Size(){
+		this:=GUIKeep.table[A_Gui],pos:=this.winpos()
+		for a,b in this.gui
+			for c,d in b
+				GuiControl,% this.win ":MoveDraw",%a%,% c (c~="y|h"?pos.h:pos.w)+d
+	}WinPos(HWND:=0){
+		VarSetCapacity(rect,16),DllCall("GetClientRect",ptr,(HWND?HWND:this.hwnd),ptr,&rect)
+		WinGetPos,x,y,,,% (HWND?"ahk_id" HWND:this.ahkid)
+		w:=NumGet(rect,8,"int"),h:=NumGet(rect,12,"int"),text:=(x!=""&&y!=""&&w!=""&&h!="")?"x" x " y" y " w" w " h" h:""
+		return {x:x,y:y,w:w,h:h,text:text}
+	}
+}
+t(x*){
+	for a,b in x{
+		if((obj:=StrSplit(b,":")).1="time"){
+			SetTimer,killtip,% "-" obj.2*1000
+			Continue
+		}
+		list.=b "`n"
+	}
+	Tooltip,% list
+	return
+	killtip:
+	ToolTip
+	return
 }
