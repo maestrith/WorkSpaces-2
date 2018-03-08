@@ -1,5 +1,3 @@
-0.000.2:
-Added:
-- Add Chrome and Explorer window to the current WorkSpace
-- Cleaned up Enter for editing things
-- Moved the Screen Identifier for the main screen from covering the main GUI
+0.000.3
+Fixed: Reported by Amit
+- Submit buttons for passwords

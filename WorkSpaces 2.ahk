@@ -1069,7 +1069,21 @@ Login(Node,ChromeInst){
 	Tab.Call("DOM.setAttributeValue", {"nodeId": NameNode.NodeId, "name": "value", "value":ea.UserName})
 	NameNode := Tab.Call("DOM.querySelector", {"nodeId": RootNode.nodeId, "selector": "input[name=" ea.PasswordNode "]"})
 	Tab.Call("DOM.setAttributeValue", {"nodeId": NameNode.NodeId, "name": "value", "value": Decode(ea.PassWord)})
-	Tab.Evaluate("document.querySelector('button[type=submit]').click();")
+	NameNode := Tab.Call("DOM.querySelector", {"nodeId": RootNode.nodeId, "selector": "button[id=yui-gen1-button]"})
+	;here
+	/*
+		for a,b in NameNode
+			m(a,b)
+	*/
+	/*
+		<button type="button" tabindex="0" id="yui-gen1-button">log in</button>
+	*/
+	/*
+		Tab.Evaluate("document.querySelector('button[type=submit]').click();")
+	*/
+	;yui-gen1-button
+	Tab.Evaluate("document.querySelector('" ea.SubmitType "[" (ea.SubmitID?"id=" ea.SubmitID:"type=Submit") "]').click();")
+	;~ Tab.Evaluate("document.querySelector('nodeID=" NameNode.nodeID "').click();")
 }
 CreatePassWordSequence(){
 	InputBox,Keys,Number Of Keys,Enter the number of keys that you want to have in this sequence,,,,,,,,4
@@ -1277,7 +1291,7 @@ CreateChrome(EditNode:=""){
 	Gui,Add,Hotkey,w200 vHotkey gSetManual Limit1,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
 	Gui,Add,Text,,Manual Hotkey:
 	Gui,Add,Edit,w200 vManual gManualHotkey hwndManualHWND,% SSN(Node,"ancestor-or-self::HotKey/@hotkey").text
-	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",Decode(ea.PassWord)],["passwordnode","Password Node",ea.PasswordNode],["width","Enter the Width",ea.Width],["height","Enter the Height",ea.Height]]{
+	for a,b in [["user","User Name",ea.UserName],["usernode","User Node",ea.UserNode],["password","Password",Decode(ea.PassWord)],["passwordnode","Password Node",ea.PasswordNode],["submittype","Submit Type",(ea.submittype?ea.submittype:"button")],["submitid","Submit ID",ea.submitid],["width","Enter the Width",ea.Width],["height","Enter the Height",ea.Height]]{
 		Gui,Add,Text,,% b.2 ":"
 		Gui,Add,Edit,% "w200 v" b.1 (A_Index=3?" Password":""),% b.3
 	}
@@ -1302,7 +1316,7 @@ CreateChrome(EditNode:=""){
 	}else
 		Hotkey:=Hotkey
 	ClearLast()
-	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:User,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode}
+	Obj:={url:URL,window:Window,exe:"Chrome.exe",last:1,username:User,password:Encode(PassWord),usernode:UserNode,passwordnode:PasswordNode,submitid:SubmitID,submittype:SubmitType}
 	if(Width&&Height)
 		Obj.width:=Width,Obj.height:=Height
 	else
